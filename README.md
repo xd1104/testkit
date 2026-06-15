@@ -1,0 +1,121 @@
+# 自動化測試工具 (testkit)
+
+一個本機 / 線上都能跑的自動化測試工具。輸入網址、按按鈕，跑完在網頁顯示測試報告，並可下載報告交給工程師。
+
+目前內建測試項目：**Game 完整度**（主網 vs 測試網 比對）。
+
+---
+
+## 怎麼用
+
+### 本機啟動
+
+在這個資料夾跑：
+
+```powershell
+node server.js
+```
+
+看到 `測試工具已啟動 → http://localhost:4500` 後，瀏覽器打開 http://localhost:4500。
+
+操作：選測試項目 → 填網址 → 按「開始測試」→ 跑完顯示報告。報告下方可下載 `.md` / `JSON`，或一鍵複製文字。
+
+### 線上版（Render 免費方案）
+
+程式已可部署到 [Render.com](https://render.com)（免費方案）。流程：
+
+1. 把這個 repo 推到 GitHub
+2. Render → New Web Service → 選此 repo（會自動讀 `render.yaml`）
+3. 在 Environment 設環境變數 `APP_PASSWORD`＝你要的密碼
+4. 部署完拿到公開網址，打開時用該密碼登入（帳號隨意）
+
+之後改了程式，`git push` 後 Render 會自動重新部署。
+
+> 免費方案特性：閒置約 15 分鐘會休眠（下次喚醒等 ~30-60 秒）；硬碟是暫時的，歷史紀錄重啟後會清空（報告當下可下載，不受影響）。
+
+---
+
+## 測試項目：Game 完整度
+
+**判定規則**：拿測試網跟主網比對，**Provider 清單 + 每個 Provider 底下的 game 清單完全一致才 PASS**；有差異則 FAIL，報告列出差在哪。
+
+資料來源（純打 API、不經過 AI、零成本）：
+
+1. 從前台 Next.js `_app` chunk 抓 `HOST_URL` → 得出 `wallet.<domain>`
+2. `wallet.<domain>/func/cms/getCmsPageInfo?page=home.game` → Provider 清單（用 `lobbyKey` 去重，**不可用 seq**）
+3. `wallet.<domain>/func/comm/getCmsSetting?key=<lobbyKey>` → 該 lobby 的 game 清單
+
+---
+
+## 怎麼新增一個測試項目
+
+三步驟，前端 / 報告 / 下載 / 密碼都不用動：
+
+### 1. 在 `tests/` 加一個檔
+
+照 `tests/game-completeness.js` 的格式，export 出 `id`、`name`、`inputs`、`run`：
+
+```js
+module.exports = {
+  id: "my-test",                 // 唯一英數 id
+  name: "我的測試",               // 下拉選單顯示的名稱
+  inputs: [                      // 網頁要使用者填的欄位
+    { key: "url", label: "目標 URL", placeholder: "https://..." },
+  ],
+  // params 是使用者填的值；onProgress 用來回報即時進度
+  async run(params, onProgress) {
+    onProgress({ phase: "x", current: 1, total: 3, message: "處理中…" });
+    // ...做你的測試邏輯...
+    return {
+      testId: "my-test",
+      name: "我的測試",
+      result: "PASS",            // 或 "FAIL"
+      startedAt: new Date().toISOString(),
+      finishedAt: new Date().toISOString(),
+      durationMs: 123,
+      summary: { /* 任意統計欄位 */ },
+      // 其他你要顯示在報告的欄位
+    };
+  },
+};
+```
+
+回傳的報告物件必備欄位：`testId`、`name`、`result`、`finishedAt`、`durationMs`。其餘可自由設計。
+
+### 2. 在 `tests/index.js` 註冊
+
+```js
+const myTest = require("./my-test");
+const tests = [gameCompleteness, myTest];   // 加進陣列
+```
+
+### 3. 推上去
+
+```powershell
+git push
+```
+
+Render 自動重新部署，網頁下拉選單就會自動多出新項目。
+
+> 小提醒：新增測試前先想清楚「怎麼算 PASS、怎麼算 FAIL」，那是測試的核心。
+
+---
+
+## 專案結構
+
+```
+testkit/
+├── server.js                  # 本機 server：前端 + 觸發測試(SSE 即時進度) + 歷史 + 密碼
+├── package.json               # 啟動設定 (npm start → node server.js)
+├── render.yaml                # Render 部署設定
+├── lib/
+│   └── fetcher.js             # 抓資料：探測 wallet host、抓 provider、抓 lobby 的 game
+├── tests/
+│   ├── index.js               # 測試項目註冊表
+│   └── game-completeness.js   # 「Game 完整度」測試定義
+├── public/
+│   └── index.html             # 前端網頁（單檔）
+└── runs/                      # 每次測試報告的 JSON（已被 .gitignore 排除）
+```
+
+零外部依賴，純 Node（需 Node 18 以上）。
