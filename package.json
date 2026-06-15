@@ -1,0 +1,12 @@
+{
+  "name": "testkit",
+  "version": "1.0.0",
+  "description": "自動化測試工具：主網 vs 測試網 Game 完整度比對",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

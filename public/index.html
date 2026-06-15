@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>自動化測試工具</title>
+<style>
+  :root {
+    --bg: #0f1115; --card: #181b22; --line: #272b34; --txt: #e6e8ec;
+    --muted: #9aa3b2; --accent: #4f8cff; --ok: #2ecc71; --fail: #ff5c5c;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--txt);
+    font-family: -apple-system, "Segoe UI", "Microsoft JhengHei", sans-serif; }
+  .wrap { max-width: 880px; margin: 0 auto; padding: 32px 20px 80px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .sub { color: var(--muted); font-size: 13px; margin-bottom: 24px; }
+  .card { background: var(--card); border: 1px solid var(--line);
+    border-radius: 12px; padding: 20px; margin-bottom: 18px; }
+  label { display: block; font-size: 13px; color: var(--muted); margin: 12px 0 6px; }
+  input, select { width: 100%; padding: 10px 12px; background: #0f1115;
+    border: 1px solid var(--line); border-radius: 8px; color: var(--txt); font-size: 14px; }
+  button { margin-top: 18px; width: 100%; padding: 12px; background: var(--accent);
+    color: #fff; border: 0; border-radius: 8px; font-size: 15px; font-weight: 600;
+    cursor: pointer; }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  .progress { display: none; }
+  .bar { height: 8px; background: #0f1115; border-radius: 6px; overflow: hidden; margin: 10px 0; }
+  .bar > i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .2s; }
+  .pmsg { font-size: 13px; color: var(--muted); }
+  .verdict { font-size: 26px; font-weight: 800; }
+  .verdict.PASS { color: var(--ok); } .verdict.FAIL { color: var(--fail); }
+  .meta { color: var(--muted); font-size: 13px; margin: 4px 0 16px; }
+  .stat { display: inline-block; background: #0f1115; border: 1px solid var(--line);
+    border-radius: 8px; padding: 8px 12px; margin: 0 8px 8px 0; font-size: 13px; }
+  .dlbar { margin: 14px 0 4px; display: flex; gap: 8px; flex-wrap: wrap; }
+  .dl { width: auto; margin: 0; padding: 8px 14px; font-size: 13px; font-weight: 600;
+    background: #0f1115; color: var(--txt); border: 1px solid var(--line); }
+  .dl:hover { border-color: var(--accent); color: var(--accent); }
+  .diff { border: 1px solid var(--line); border-radius: 8px; margin-top: 12px; overflow: hidden; }
+  .diff > h4 { margin: 0; padding: 10px 14px; background: #0f1115; font-size: 14px;
+    border-bottom: 1px solid var(--line); }
+  .row { padding: 6px 14px; font-size: 13px; border-bottom: 1px solid var(--line); }
+  .row:last-child { border-bottom: 0; }
+  .tag { font-size: 11px; padding: 1px 6px; border-radius: 4px; margin-right: 6px; }
+  .tag.miss { background: #3a1a1a; color: var(--fail); }
+  .tag.extra { background: #1a2e3a; color: var(--accent); }
+  .runs a { color: var(--accent); text-decoration: none; }
+  .runrow { display: flex; justify-content: space-between; font-size: 13px;
+    padding: 8px 0; border-bottom: 1px solid var(--line); }
+  .pill { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 10px; }
+  .pill.PASS { background: #14361f; color: var(--ok); }
+  .pill.FAIL { background: #3a1414; color: var(--fail); }
+  .err { color: var(--fail); font-size: 14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>自動化測試工具</h1>
+  <div class="sub">選測試項目 → 填網址 → 按開始，跑完顯示報告</div>
+
+  <div class="card">
+    <label>測試項目</label>
+    <select id="testId"></select>
+    <div id="inputs"></div>
+    <button id="go">開始測試</button>
+  </div>
+
+  <div class="card progress" id="progress">
+    <div class="pmsg" id="pmsg">準備中…</div>
+    <div class="bar"><i id="barfill"></i></div>
+    <div class="pmsg" id="psub"></div>
+  </div>
+
+  <div id="reportBox"></div>
+
+  <div class="card runs">
+    <label style="margin-top:0">歷史紀錄</label>
+    <div id="runs"></div>
+  </div>
+</div>
+
+<script>
+const $ = (s) => document.querySelector(s);
+let TESTS = [];
+
+async function loadTests() {
+  TESTS = await (await fetch("/api/tests")).json();
+  const sel = $("#testId");
+  sel.innerHTML = TESTS.map((t) => `<option value="${t.id}">${t.name}</option>`).join("");
+  renderInputs();
+  sel.onchange = renderInputs;
+}
+function curTest() { return TESTS.find((t) => t.id === $("#testId").value); }
+function renderInputs() {
+  const t = curTest();
+  $("#inputs").innerHTML = t.inputs.map((i) =>
+    `<label>${i.label}</label><input id="in_${i.key}" placeholder="${i.placeholder || ""}" />`
+  ).join("");
+}
+
+function esc(s) { return String(s == null ? "" : s).replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c])); }
+
+async function loadRuns() {
+  const runs = await (await fetch("/api/runs")).json();
+  $("#runs").innerHTML = runs.length ? runs.map((r) =>
+    `<div class="runrow">
+      <span><a href="#" onclick="openRun('${r.runId}');return false">${esc(r.name)}</a>
+        <span style="color:var(--muted)"> ${esc(r.testUrl || "")}</span></span>
+      <span><span class="pill ${r.result}">${r.result}</span>
+        <span style="color:var(--muted);margin-left:8px">${new Date(r.finishedAt).toLocaleString()}</span></span>
+    </div>`).join("") : '<span style="color:var(--muted);font-size:13px">尚無紀錄</span>';
+}
+async function openRun(id) {
+  const r = await (await fetch("/api/runs/" + encodeURIComponent(id))).json();
+  renderReport(r);
+  $("#reportBox").scrollIntoView({ behavior: "smooth" });
+}
+
+function renderReport(r) {
+  const s = r.summary || {};
+  let diffs = "";
+  if (r.providerDiff && (r.providerDiff.onlyInMain.length || r.providerDiff.onlyInTest.length)) {
+    const rows = [
+      ...r.providerDiff.onlyInMain.map((p) => `<div class="row"><span class="tag miss">測試網缺</span>${esc(p.providerName)} <span style="color:var(--muted)">(${esc(p.lobbyKey)})</span></div>`),
+      ...r.providerDiff.onlyInTest.map((p) => `<div class="row"><span class="tag extra">測試網多</span>${esc(p.providerName)} <span style="color:var(--muted)">(${esc(p.lobbyKey)})</span></div>`),
+    ].join("");
+    diffs += `<div class="diff"><h4>Provider 差異</h4>${rows}</div>`;
+  }
+  for (const d of (r.lobbyDiffs || [])) {
+    const rows = [
+      ...d.missing.map((g) => `<div class="row"><span class="tag miss">缺</span>${esc(g.gameName)} <span style="color:var(--muted)">(${esc(g.gameCode)})</span></div>`),
+      ...d.extra.map((g) => `<div class="row"><span class="tag extra">多</span>${esc(g.gameName)} <span style="color:var(--muted)">(${esc(g.gameCode)})</span></div>`),
+    ].join("");
+    diffs += `<div class="diff"><h4>${esc(d.providerName)} — 主網 ${d.mainCount} / 測試網 ${d.testCount}</h4>${rows}</div>`;
+  }
+  if (r.result === "PASS") diffs = '<div style="color:var(--ok);font-size:14px;margin-top:12px">✓ 測試網與主網完全一致</div>';
+
+  window.__report = r;
+  $("#reportBox").innerHTML = `<div class="card">
+    <div class="verdict ${r.result}">${r.result}</div>
+    <div class="meta">${esc(r.name)} · ${(r.durationMs/1000).toFixed(1)}s · ${new Date(r.finishedAt).toLocaleString()}</div>
+    <div class="meta">主網 ${esc(r.mainUrl)} → ${esc(r.walletHosts && r.walletHosts.main)}<br>測試網 ${esc(r.testUrl)} → ${esc(r.walletHosts && r.walletHosts.test)}</div>
+    <div>
+      <span class="stat">Provider 主網 ${s.mainProviders} / 測試網 ${s.testProviders}</span>
+      <span class="stat">Provider 差異 ${(s.providerMissing||0)+(s.providerExtra||0)}</span>
+      <span class="stat">Game 有差異的 Provider ${s.lobbiesWithGameDiff||0}</span>
+    </div>
+    <div class="dlbar">
+      <button class="dl" onclick="downloadReport('md')">下載報告 (.md)</button>
+      <button class="dl" onclick="downloadReport('json')">下載 JSON</button>
+      <button class="dl" onclick="copyReport()">複製報告文字</button>
+    </div>
+    ${diffs}
+  </div>`;
+}
+
+// 把報告物件轉成 Markdown，方便貼給工程師
+function buildMarkdown(r) {
+  const s = r.summary || {};
+  const L = [];
+  L.push(`# Game 完整度測試報告 — ${r.result}`);
+  L.push("");
+  L.push(`- 測試項目：${r.name}`);
+  L.push(`- 主網：${r.mainUrl}  →  ${r.walletHosts && r.walletHosts.main}`);
+  L.push(`- 測試網：${r.testUrl}  →  ${r.walletHosts && r.walletHosts.test}`);
+  L.push(`- 時間：${new Date(r.finishedAt).toLocaleString()}（耗時 ${(r.durationMs/1000).toFixed(1)}s）`);
+  L.push("");
+  L.push(`## 結果：${r.result}`);
+  L.push(`- Provider 數量：主網 ${s.mainProviders} / 測試網 ${s.testProviders}`);
+  L.push(`- Provider 差異：${(s.providerMissing||0)+(s.providerExtra||0)}`);
+  L.push(`- Game 有差異的 Provider：${s.lobbiesWithGameDiff||0}`);
+  L.push("");
+  if (r.result === "PASS") {
+    L.push("✅ 測試網與主網完全一致，無差異。");
+    return L.join("\n");
+  }
+  const pd = r.providerDiff || { onlyInMain: [], onlyInTest: [] };
+  if (pd.onlyInMain.length || pd.onlyInTest.length) {
+    L.push("## Provider 差異");
+    pd.onlyInMain.forEach((p) => L.push(`- ❌ 測試網缺：${p.providerName} (${p.lobbyKey})`));
+    pd.onlyInTest.forEach((p) => L.push(`- ➕ 測試網多：${p.providerName} (${p.lobbyKey})`));
+    L.push("");
+  }
+  if ((r.lobbyDiffs || []).length) {
+    L.push("## Game 清單差異");
+    for (const d of r.lobbyDiffs) {
+      L.push(`### ${d.providerName} （${d.lobbyKey}） — 主網 ${d.mainCount} / 測試網 ${d.testCount}`);
+      d.missing.forEach((g) => L.push(`- ❌ 缺：${g.gameName} (${g.gameCode})`));
+      d.extra.forEach((g) => L.push(`- ➕ 多：${g.gameName} (${g.gameCode})`));
+      L.push("");
+    }
+  }
+  return L.join("\n");
+}
+
+function fileStamp(r) {
+  const host = (r.testUrl || "").replace(/^https?:\/\//, "").replace(/[^a-zA-Z0-9.-]/g, "_");
+  const ts = (r.finishedAt || "").replace(/[:.]/g, "-").slice(0, 19);
+  return `game-completeness_${host}_${ts}`;
+}
+
+function saveBlob(content, filename, type) {
+  const blob = new Blob([content], { type });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function downloadReport(fmt) {
+  const r = window.__report;
+  if (!r) return;
+  if (fmt === "json") {
+    saveBlob(JSON.stringify(r, null, 2), fileStamp(r) + ".json", "application/json");
+  } else {
+    saveBlob(buildMarkdown(r), fileStamp(r) + ".md", "text/markdown");
+  }
+}
+
+function copyReport() {
+  const r = window.__report;
+  if (!r) return;
+  navigator.clipboard.writeText(buildMarkdown(r)).then(
+    () => alert("報告文字已複製，可直接貼給工程師"),
+    () => alert("複製失敗，請改用下載")
+  );
+}
+
+$("#go").onclick = () => {
+  const t = curTest();
+  const params = new URLSearchParams({ testId: t.id });
+  for (const i of t.inputs) {
+    const v = $("#in_" + i.key).value.trim();
+    if (!v) { alert("請填寫 " + i.label); return; }
+    params.set(i.key, v);
+  }
+  $("#go").disabled = true;
+  $("#reportBox").innerHTML = "";
+  $("#progress").style.display = "block";
+  $("#pmsg").textContent = "連線中…";
+  $("#barfill").style.width = "0%";
+  $("#psub").textContent = "";
+
+  const es = new EventSource("/api/run?" + params.toString());
+  es.addEventListener("progress", (e) => {
+    const p = JSON.parse(e.data);
+    $("#pmsg").textContent = p.message;
+    if (p.phase === "games" && p.total) {
+      $("#barfill").style.width = Math.round((p.current / p.total) * 100) + "%";
+      $("#psub").textContent = `${p.current} / ${p.total}`;
+    }
+  });
+  es.addEventListener("done", (e) => {
+    es.close();
+    $("#progress").style.display = "none";
+    $("#go").disabled = false;
+    renderReport(JSON.parse(e.data));
+    loadRuns();
+  });
+  es.addEventListener("error", (e) => {
+    es.close();
+    $("#progress").style.display = "none";
+    $("#go").disabled = false;
+    let msg = "執行失敗";
+    try { msg = JSON.parse(e.data).message; } catch {}
+    $("#reportBox").innerHTML = `<div class="card err">✗ ${esc(msg)}</div>`;
+  });
+};
+
+loadTests();
+loadRuns();
+</script>
+</body>
+</html>
