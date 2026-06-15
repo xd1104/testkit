@@ -10,6 +10,9 @@ const RUNS_DIR = path.join(__dirname, "runs");
 // 設了 APP_PASSWORD 環境變數就啟用密碼保護（線上部署時設定）；沒設則不擋（本機方便用）
 const APP_PASSWORD = process.env.APP_PASSWORD || "";
 
+// 確保歷史資料夾存在（runs/ 被 .gitignore 排除，部署環境不會有，啟動時自動建）
+if (!fs.existsSync(RUNS_DIR)) fs.mkdirSync(RUNS_DIR, { recursive: true });
+
 // 瀏覽器原生 Basic Auth：帳號隨意，密碼要對。EventSource 會自動帶上認證
 function checkAuth(req, res) {
   if (!APP_PASSWORD) return true;
