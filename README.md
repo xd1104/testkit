@@ -51,7 +51,10 @@ node server.js
 - Provider icon（比路徑/檔名，忽略網域）
 - Game icon（比路徑/檔名，忽略網域）
 
-> icon 為何只比路徑：每站有自己的圖片網域（例 `img2.tuktukbet99.com` vs `img2.lapdee88.com`），但路徑通常相同（`/Theme/.../pgsoft.webp`）。直接比整串 URL 會全部誤判，所以只比路徑。
+> icon 比對規則：
+> - **忽略網域**：每站有自己的圖片網域（例 `img2.tuktukbet99.com` vs `img2.lapdee88.com`），只比路徑。
+> - **忽略副檔名**：`.png` 與 `.webp` 只是格式不同、圖視為相同（例 `BNG_385.png` = `BNG_385.webp`），不算差異。
+> - 報告仍顯示完整路徑（含副檔名），方便看真正不同的那幾筆。
 
 兩個項目共用同一套抓資料邏輯（`lib/collect.js`），只是拿到資料後比的東西不同。
 

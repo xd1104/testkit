@@ -6,6 +6,10 @@ const { collectSites, inputs } = require("../lib/collect");
 const id = "icon-compare";
 const name = "Provider & Game Icon 比對";
 
+// 比 icon 時忽略副檔名（.png / .webp 等只是格式不同，圖視為相同）
+const stripExt = (s) => String(s || "").replace(/\.[a-z0-9]+$/i, "");
+const sameIcon = (a, b) => stripExt(a) === stripExt(b);
+
 async function run(params, onProgress) {
   const t0 = Date.now();
   const report = {
@@ -27,7 +31,7 @@ async function run(params, onProgress) {
   // Provider icon 比對（只比兩站都有的）
   for (const p of data.mainProvs) {
     const t = data.testKeys.get(p.lobbyKey);
-    if (t && p.icon !== t.icon) {
+    if (t && !sameIcon(p.icon, t.icon)) {
       report.providerIconDiffs.push({
         lobbyKey: p.lobbyKey,
         providerName: p.providerName,
@@ -42,7 +46,7 @@ async function run(params, onProgress) {
     const { main: mg, test: tg } = data.games[p.lobbyKey];
     const testMap = new Map(tg.map((g) => [g.gameCode, g]));
     const iconChanged = mg
-      .filter((g) => testMap.has(g.gameCode) && g.icon !== testMap.get(g.gameCode).icon)
+      .filter((g) => testMap.has(g.gameCode) && !sameIcon(g.icon, testMap.get(g.gameCode).icon))
       .map((g) => ({
         gameCode: g.gameCode,
         gameName: g.gameName,
