@@ -45,6 +45,10 @@ node server.js
 2. `wallet.<domain>/func/cms/getCmsPageInfo?page=home.game` → Provider 清單（用 `lobbyKey` 去重，**不可用 seq**）
 3. `wallet.<domain>/func/comm/getCmsSetting?key=<lobbyKey>` → 該 lobby 的 game 清單
 
+**重要：只比對「啟用」的遊戲。** API 回傳的 `menuList[]` 每款遊戲有 `status` 欄位：
+正數（10）= 上架、玩家看得到；負數（-10、-5）= 下架/隱藏、網頁不顯示。
+工具只計入 `status > 0` 的遊戲，跟網頁顯示一致。否則會把後台隱藏的遊戲也算進去，造成數量對不上、誤判 FAIL。
+
 ---
 
 ## 怎麼新增一個測試項目
