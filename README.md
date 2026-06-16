@@ -37,7 +37,11 @@ node server.js
 
 ## 測試項目
 
-主網 vs 測試網的比對拆成兩個獨立項目，**建議先比數量、數量對了再比 icon**（數量都不對的話比 icon 沒意義）：
+每個測試項目在網頁上選取後，下方會顯示一段說明（`description`）讓使用者知道它在測什麼。目前有三個：
+
+### 比對型（主網 vs 測試網，讀資料比對，免費、可線上）
+
+**建議先比數量、數量對了再比 icon**（數量都不對的話比 icon 沒意義）：
 
 ### 1. Provider & Game 數量比對（`count-compare`）
 
@@ -57,6 +61,20 @@ node server.js
 > - 報告仍顯示完整路徑（含副檔名），方便看真正不同的那幾筆。
 
 兩個項目共用同一套抓資料邏輯（`lib/collect.js`），只是拿到資料後比的東西不同。
+
+### 流程型（單站功能測試，E2E）
+
+### 3. 註冊 / 登入 / 登出（`register-login-logout`）
+
+對**單一個站**實際跑一次完整流程，三步都成功才 PASS（會在目標站建立一個 qa 開頭的測試帳號）：
+
+1. **註冊**：`POST <wallet>/func/player/register`（form），欄位 `username, password, confirm_password, reg_type=10, countryCode=+880, type=30, device_id(UUID), mobile_no(10碼)` → 回 `code:0` + loginToken
+2. **登入**：`POST <wallet>/j_spring_security_check`（`j_username` / `j_password`）→ 回 `code:0 login success` + JSESSIONID cookie
+3. **登出**：`GET <wallet>/func/j_spring_security_logout`（帶 cookie）→ 回 `code:0 logout success`
+
+帳號命名：`qa` + 日期(YYMMDD) + 4 碼隨機（例 `qa260616a3f9`）。`eventData` 那包追蹤資料後端不需要，不送。系統參數 `reg_type/countryCode/type` 是這套品牌（孟加拉）的固定值，換品牌可能要調。
+
+> 此項仍是純 API（輕量、可線上）。前端表單驗證測試（擋字、錯誤提示）才需要瀏覽器，屬於之後的本機 runner。
 
 資料來源（純打 API、不經過 AI、零成本）：
 
@@ -133,11 +151,13 @@ testkit/
 ├── render.yaml                # Render 部署設定
 ├── lib/
 │   ├── fetcher.js             # 抓資料：探測 wallet host、抓 provider、抓 lobby 的 game
-│   └── collect.js             # 共用：一次收集兩站的 provider + game 資料
+│   ├── collect.js             # 共用：一次收集兩站的 provider + game 資料
+│   └── http.js                # 通用 HTTPS 請求（POST/cookie），給流程型測試用
 ├── tests/
 │   ├── index.js               # 測試項目註冊表
 │   ├── count-compare.js       # 「Provider & Game 數量比對」
-│   └── icon-compare.js        # 「Provider & Game Icon 比對」
+│   ├── icon-compare.js        # 「Provider & Game Icon 比對」
+│   └── register-login-logout.js # 「註冊 / 登入 / 登出」E2E
 ├── public/
 │   └── index.html             # 前端網頁（單檔）
 └── runs/                      # 每次測試報告的 JSON（已被 .gitignore 排除）

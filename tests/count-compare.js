@@ -5,6 +5,8 @@ const { collectSites, inputs } = require("../lib/collect");
 
 const id = "count-compare";
 const name = "Provider & Game 數量比對";
+const description =
+  "比對測試網與主網的 Provider 清單，以及每個 Provider 底下的遊戲清單（誰有誰沒有）。完全一致才 PASS。需填主網 + 測試網兩個網址。";
 
 async function run(params, onProgress) {
   const t0 = Date.now();
@@ -73,4 +75,4 @@ async function run(params, onProgress) {
   return report;
 }
 
-module.exports = { id, name, inputs, run };
+module.exports = { id, name, description, inputs, run };

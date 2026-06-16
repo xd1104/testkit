@@ -5,6 +5,8 @@ const { collectSites, inputs } = require("../lib/collect");
 
 const id = "icon-compare";
 const name = "Provider & Game Icon 比對";
+const description =
+  "比對兩站都有的 Provider / 遊戲的 icon（只比路徑，忽略網域與副檔名）。icon 全一致才 PASS。建議先過數量比對再跑這個。需填主網 + 測試網兩個網址。";
 
 // 比 icon 時忽略副檔名（.png / .webp 等只是格式不同，圖視為相同）
 const stripExt = (s) => String(s || "").replace(/\.[a-z0-9]+$/i, "");
@@ -81,4 +83,4 @@ async function run(params, onProgress) {
   return report;
 }
 
-module.exports = { id, name, inputs, run };
+module.exports = { id, name, description, inputs, run };

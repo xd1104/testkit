@@ -63,7 +63,7 @@ function listRuns() {
           name: r.name,
           result: r.result,
           mainUrl: r.mainUrl,
-          testUrl: r.testUrl,
+          testUrl: r.testUrl || r.siteUrl,
           finishedAt: r.finishedAt,
           durationMs: r.durationMs,
           summary: r.summary,

@@ -46,6 +46,10 @@
   .tag.miss { background: #3a1a1a; color: var(--fail); }
   .tag.extra { background: #1a2e3a; color: var(--accent); }
   .tag.icon { background: #3a3119; color: #e6b34f; }
+  .tag.ok { background: #14361f; color: var(--ok); }
+  .testdesc:not(:empty) { margin: 10px 0 4px; padding: 10px 12px; background: #0f1115;
+    border: 1px solid var(--line); border-radius: 8px; color: var(--muted);
+    font-size: 13px; line-height: 1.5; }
   .iconpath { color: var(--muted); font-size: 11px; margin-top: 4px;
     word-break: break-all; font-family: monospace; }
   .runs a { color: var(--accent); text-decoration: none; }
@@ -65,6 +69,7 @@
   <div class="card">
     <label>測試項目</label>
     <select id="testId"></select>
+    <div id="testDesc" class="testdesc"></div>
     <div id="inputs"></div>
     <button id="go">開始測試</button>
   </div>
@@ -97,6 +102,7 @@ async function loadTests() {
 function curTest() { return TESTS.find((t) => t.id === $("#testId").value); }
 function renderInputs() {
   const t = curTest();
+  $("#testDesc").innerHTML = t.description ? `📋 ${esc(t.description)}` : "";
   $("#inputs").innerHTML = t.inputs.map((i) =>
     `<label>${i.label}</label><input id="in_${i.key}" placeholder="${i.placeholder || ""}" />`
   ).join("");
@@ -146,7 +152,15 @@ function renderReport(r) {
     ].join("");
     diffs += `<div class="diff"><h4>${esc(d.providerName)} — 主網 ${d.mainCount} / 測試網 ${d.testCount}</h4>${rows}</div>`;
   }
-  if (r.result === "PASS") diffs = '<div style="color:var(--ok);font-size:14px;margin-top:12px">✓ 測試網與主網完全一致</div>';
+  // 流程型測試（註冊/登入/登出）：顯示每一步
+  if (r.steps && r.steps.length) {
+    const rows = r.steps.map((st) =>
+      `<div class="row"><span class="tag ${st.status === "PASS" ? "ok" : "miss"}">${st.status}</span>${esc(st.name)} <span style="color:var(--muted)">— ${esc(st.detail)}</span></div>`
+    ).join("");
+    diffs = `<div class="diff"><h4>測試步驟</h4>${rows}</div>` + diffs;
+  } else if (r.result === "PASS") {
+    diffs = '<div style="color:var(--ok);font-size:14px;margin-top:12px">✓ 測試網與主網完全一致</div>';
+  }
 
   // 依報告實際有的欄位決定要顯示哪些統計（兩種測試欄位不同）
   const stats = [];
@@ -157,11 +171,20 @@ function renderReport(r) {
   if (s.gameIconDiff != null) stats.push(`Game icon 差異 ${s.gameIconDiff}`);
   const statsHtml = stats.map((t) => `<span class="stat">${t}</span>`).join("");
 
+  // meta 區依測試型態調整：比對型顯示主/測網；流程型顯示目標站 + 建立的帳號
+  let metaHtml;
+  if (r.steps) {
+    metaHtml = `目標站 ${esc(r.siteUrl)} → ${esc(r.walletHost)}`;
+    if (r.account) metaHtml += `<br>建立帳號 ${esc(r.account.username)} / ${esc(r.account.password)}`;
+  } else {
+    metaHtml = `主網 ${esc(r.mainUrl)} → ${esc(r.walletHosts && r.walletHosts.main)}<br>測試網 ${esc(r.testUrl)} → ${esc(r.walletHosts && r.walletHosts.test)}`;
+  }
+
   window.__report = r;
   $("#reportBox").innerHTML = `<div class="card">
     <div class="verdict ${r.result}">${r.result}</div>
     <div class="meta">${esc(r.name)} · ${(r.durationMs/1000).toFixed(1)}s · ${new Date(r.finishedAt).toLocaleString()}</div>
-    <div class="meta">主網 ${esc(r.mainUrl)} → ${esc(r.walletHosts && r.walletHosts.main)}<br>測試網 ${esc(r.testUrl)} → ${esc(r.walletHosts && r.walletHosts.test)}</div>
+    <div class="meta">${metaHtml}</div>
     <div>${statsHtml}</div>
     <div class="dlbar">
       <button class="dl" onclick="downloadReport('md')">下載報告 (.md)</button>
@@ -179,11 +202,20 @@ function buildMarkdown(r) {
   L.push(`# ${r.name} 報告 — ${r.result}`);
   L.push("");
   L.push(`- 測試項目：${r.name}`);
-  L.push(`- 主網：${r.mainUrl}  →  ${r.walletHosts && r.walletHosts.main}`);
-  L.push(`- 測試網：${r.testUrl}  →  ${r.walletHosts && r.walletHosts.test}`);
+  if (r.steps) {
+    L.push(`- 目標站：${r.siteUrl}  →  ${r.walletHost}`);
+    if (r.account) L.push(`- 建立帳號：${r.account.username} / ${r.account.password}`);
+  } else {
+    L.push(`- 主網：${r.mainUrl}  →  ${r.walletHosts && r.walletHosts.main}`);
+    L.push(`- 測試網：${r.testUrl}  →  ${r.walletHosts && r.walletHosts.test}`);
+  }
   L.push(`- 時間：${new Date(r.finishedAt).toLocaleString()}（耗時 ${(r.durationMs/1000).toFixed(1)}s）`);
   L.push("");
   L.push(`## 結果：${r.result}`);
+  if (r.steps) {
+    r.steps.forEach((st) => L.push(`- ${st.status === "PASS" ? "✅" : "❌"} ${st.name}：${st.detail}`));
+    return L.join("\n");
+  }
   if (s.mainProviders != null) L.push(`- Provider 數量：主網 ${s.mainProviders} / 測試網 ${s.testProviders}`);
   if (s.providerMissing != null || s.providerExtra != null) L.push(`- Provider 差異：${(s.providerMissing||0)+(s.providerExtra||0)}`);
   if (s.lobbiesWithGameDiff != null) L.push(`- Game 有差異的 Provider：${s.lobbiesWithGameDiff}`);
