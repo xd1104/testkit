@@ -35,16 +35,25 @@ node server.js
 
 ---
 
-## 測試項目：Game 完整度
+## 測試項目
 
-**判定規則**：拿測試網跟主網比對，以下全部一致才 PASS，有任一差異則 FAIL（報告列出差在哪）：
+主網 vs 測試網的比對拆成兩個獨立項目，**建議先比數量、數量對了再比 icon**（數量都不對的話比 icon 沒意義）：
 
-- Provider 清單（誰有誰沒有）
-- 每個 Provider 底下的 game 清單（誰有誰沒有）
+### 1. Provider & Game 數量比對（`count-compare`）
+
+拿測試網跟主網比對，以下全一致才 PASS：
+- Provider 清單（誰有誰沒有，用 `lobbyKey`）
+- 每個 Provider 底下的 game 清單（誰有誰沒有，用 `gameCode`）
+
+### 2. Provider & Game Icon 比對（`icon-compare`）
+
+只比「兩站都有」的 Provider / Game 的 icon，全一致才 PASS：
 - Provider icon（比路徑/檔名，忽略網域）
 - Game icon（比路徑/檔名，忽略網域）
 
 > icon 為何只比路徑：每站有自己的圖片網域（例 `img2.tuktukbet99.com` vs `img2.lapdee88.com`），但路徑通常相同（`/Theme/.../pgsoft.webp`）。直接比整串 URL 會全部誤判，所以只比路徑。
+
+兩個項目共用同一套抓資料邏輯（`lib/collect.js`），只是拿到資料後比的東西不同。
 
 資料來源（純打 API、不經過 AI、零成本）：
 
@@ -64,7 +73,7 @@ node server.js
 
 ### 1. 在 `tests/` 加一個檔
 
-照 `tests/game-completeness.js` 的格式，export 出 `id`、`name`、`inputs`、`run`：
+照 `tests/count-compare.js` 的格式，export 出 `id`、`name`、`inputs`、`run`（要抓兩站資料的話可直接用 `lib/collect.js`）：
 
 ```js
 module.exports = {
@@ -120,10 +129,12 @@ testkit/
 ├── package.json               # 啟動設定 (npm start → node server.js)
 ├── render.yaml                # Render 部署設定
 ├── lib/
-│   └── fetcher.js             # 抓資料：探測 wallet host、抓 provider、抓 lobby 的 game
+│   ├── fetcher.js             # 抓資料：探測 wallet host、抓 provider、抓 lobby 的 game
+│   └── collect.js             # 共用：一次收集兩站的 provider + game 資料
 ├── tests/
 │   ├── index.js               # 測試項目註冊表
-│   └── game-completeness.js   # 「Game 完整度」測試定義
+│   ├── count-compare.js       # 「Provider & Game 數量比對」
+│   └── icon-compare.js        # 「Provider & Game Icon 比對」
 ├── public/
 │   └── index.html             # 前端網頁（單檔）
 └── runs/                      # 每次測試報告的 JSON（已被 .gitignore 排除）

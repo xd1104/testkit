@@ -148,18 +148,21 @@ function renderReport(r) {
   }
   if (r.result === "PASS") diffs = '<div style="color:var(--ok);font-size:14px;margin-top:12px">✓ 測試網與主網完全一致</div>';
 
+  // 依報告實際有的欄位決定要顯示哪些統計（兩種測試欄位不同）
+  const stats = [];
+  if (s.mainProviders != null) stats.push(`Provider 主網 ${s.mainProviders} / 測試網 ${s.testProviders}`);
+  if (s.providerMissing != null || s.providerExtra != null) stats.push(`Provider 差異 ${(s.providerMissing||0)+(s.providerExtra||0)}`);
+  if (s.lobbiesWithGameDiff != null) stats.push(`Game 有差異的 Provider ${s.lobbiesWithGameDiff}`);
+  if (s.providerIconDiff != null) stats.push(`Provider icon 差異 ${s.providerIconDiff}`);
+  if (s.gameIconDiff != null) stats.push(`Game icon 差異 ${s.gameIconDiff}`);
+  const statsHtml = stats.map((t) => `<span class="stat">${t}</span>`).join("");
+
   window.__report = r;
   $("#reportBox").innerHTML = `<div class="card">
     <div class="verdict ${r.result}">${r.result}</div>
     <div class="meta">${esc(r.name)} · ${(r.durationMs/1000).toFixed(1)}s · ${new Date(r.finishedAt).toLocaleString()}</div>
     <div class="meta">主網 ${esc(r.mainUrl)} → ${esc(r.walletHosts && r.walletHosts.main)}<br>測試網 ${esc(r.testUrl)} → ${esc(r.walletHosts && r.walletHosts.test)}</div>
-    <div>
-      <span class="stat">Provider 主網 ${s.mainProviders} / 測試網 ${s.testProviders}</span>
-      <span class="stat">Provider 差異 ${(s.providerMissing||0)+(s.providerExtra||0)}</span>
-      <span class="stat">Provider icon 差異 ${s.providerIconDiff||0}</span>
-      <span class="stat">Game 有差異的 Provider ${s.lobbiesWithGameDiff||0}</span>
-      <span class="stat">Game icon 差異 ${s.gameIconDiff||0}</span>
-    </div>
+    <div>${statsHtml}</div>
     <div class="dlbar">
       <button class="dl" onclick="downloadReport('md')">下載報告 (.md)</button>
       <button class="dl" onclick="downloadReport('json')">下載 JSON</button>
@@ -173,7 +176,7 @@ function renderReport(r) {
 function buildMarkdown(r) {
   const s = r.summary || {};
   const L = [];
-  L.push(`# Game 完整度測試報告 — ${r.result}`);
+  L.push(`# ${r.name} 報告 — ${r.result}`);
   L.push("");
   L.push(`- 測試項目：${r.name}`);
   L.push(`- 主網：${r.mainUrl}  →  ${r.walletHosts && r.walletHosts.main}`);
@@ -181,11 +184,11 @@ function buildMarkdown(r) {
   L.push(`- 時間：${new Date(r.finishedAt).toLocaleString()}（耗時 ${(r.durationMs/1000).toFixed(1)}s）`);
   L.push("");
   L.push(`## 結果：${r.result}`);
-  L.push(`- Provider 數量：主網 ${s.mainProviders} / 測試網 ${s.testProviders}`);
-  L.push(`- Provider 差異：${(s.providerMissing||0)+(s.providerExtra||0)}`);
-  L.push(`- Provider icon 差異：${s.providerIconDiff||0}`);
-  L.push(`- Game 有差異的 Provider：${s.lobbiesWithGameDiff||0}`);
-  L.push(`- Game icon 差異：${s.gameIconDiff||0}`);
+  if (s.mainProviders != null) L.push(`- Provider 數量：主網 ${s.mainProviders} / 測試網 ${s.testProviders}`);
+  if (s.providerMissing != null || s.providerExtra != null) L.push(`- Provider 差異：${(s.providerMissing||0)+(s.providerExtra||0)}`);
+  if (s.lobbiesWithGameDiff != null) L.push(`- Game 有差異的 Provider：${s.lobbiesWithGameDiff}`);
+  if (s.providerIconDiff != null) L.push(`- Provider icon 差異：${s.providerIconDiff}`);
+  if (s.gameIconDiff != null) L.push(`- Game icon 差異：${s.gameIconDiff}`);
   L.push("");
   if (r.result === "PASS") {
     L.push("✅ 測試網與主網完全一致，無差異。");
@@ -227,7 +230,7 @@ function buildMarkdown(r) {
 function fileStamp(r) {
   const host = (r.testUrl || "").replace(/^https?:\/\//, "").replace(/[^a-zA-Z0-9.-]/g, "_");
   const ts = (r.finishedAt || "").replace(/[:.]/g, "-").slice(0, 19);
-  return `game-completeness_${host}_${ts}`;
+  return `${r.testId || "report"}_${host}_${ts}`;
 }
 
 function saveBlob(content, filename, type) {
