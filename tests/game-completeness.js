@@ -14,7 +14,7 @@ const inputs = [
   { key: "testUrl", label: "測試網 URL", placeholder: "https://www.lapdee88.com" },
 ];
 
-// 比對兩個 gameCode 清單
+// 比對兩個 game 清單：缺少、多出、以及兩邊都有但 icon 不同
 function diffGames(mainGames, testGames) {
   const mainMap = new Map(mainGames.map((g) => [g.gameCode, g]));
   const testMap = new Map(testGames.map((g) => [g.gameCode, g]));
@@ -24,7 +24,15 @@ function diffGames(mainGames, testGames) {
   const extra = testGames
     .filter((g) => !mainMap.has(g.gameCode))
     .map((g) => ({ gameCode: g.gameCode, gameName: g.gameName }));
-  return { missing, extra };
+  const iconChanged = mainGames
+    .filter((g) => testMap.has(g.gameCode) && g.icon !== testMap.get(g.gameCode).icon)
+    .map((g) => ({
+      gameCode: g.gameCode,
+      gameName: g.gameName,
+      mainIcon: g.icon,
+      testIcon: testMap.get(g.gameCode).icon,
+    }));
+  return { missing, extra, iconChanged };
 }
 
 // onProgress({ phase, current, total, message }) 回報即時進度
@@ -39,6 +47,7 @@ async function run(params, onProgress) {
     walletHosts: {},
     summary: {},
     providerDiff: { onlyInMain: [], onlyInTest: [] },
+    providerIconDiffs: [],
     lobbyDiffs: [],
   };
   const t0 = Date.now();
@@ -71,6 +80,19 @@ async function run(params, onProgress) {
     .filter((p) => !mainKeys.has(p.lobbyKey))
     .map((p) => ({ lobbyKey: p.lobbyKey, providerName: p.providerName }));
 
+  // 3b. 對「兩站都有」的 provider 比對 icon（只比路徑）
+  for (const p of mainProvs) {
+    const t = testKeys.get(p.lobbyKey);
+    if (t && p.icon !== t.icon) {
+      report.providerIconDiffs.push({
+        lobbyKey: p.lobbyKey,
+        providerName: p.providerName,
+        mainIcon: p.icon,
+        testIcon: t.icon,
+      });
+    }
+  }
+
   // 4. 對「兩站都有」的 lobby 比對 game 清單
   const common = mainProvs.filter((p) => testKeys.has(p.lobbyKey));
   const total = common.length;
@@ -87,8 +109,8 @@ async function run(params, onProgress) {
       fetchLobbyGames(mainHost, p.lobbyKey, mainSite.referer),
       fetchLobbyGames(testHost, p.lobbyKey, testSite.referer),
     ]);
-    const { missing, extra } = diffGames(mg, tg);
-    if (missing.length || extra.length) {
+    const { missing, extra, iconChanged } = diffGames(mg, tg);
+    if (missing.length || extra.length || iconChanged.length) {
       report.lobbyDiffs.push({
         lobbyKey: p.lobbyKey,
         providerName: p.providerName,
@@ -96,6 +118,7 @@ async function run(params, onProgress) {
         testCount: tg.length,
         missing,
         extra,
+        iconChanged,
       });
     }
   }
@@ -106,11 +129,17 @@ async function run(params, onProgress) {
     testProviders: testProvs.length,
     providerMissing: report.providerDiff.onlyInMain.length,
     providerExtra: report.providerDiff.onlyInTest.length,
+    providerIconDiff: report.providerIconDiffs.length,
     lobbiesWithGameDiff: report.lobbyDiffs.length,
+    gameIconDiff: report.lobbyDiffs.reduce(
+      (n, d) => n + (d.iconChanged ? d.iconChanged.length : 0),
+      0
+    ),
   };
   const ok =
     report.providerDiff.onlyInMain.length === 0 &&
     report.providerDiff.onlyInTest.length === 0 &&
+    report.providerIconDiffs.length === 0 &&
     report.lobbyDiffs.length === 0;
   report.result = ok ? "PASS" : "FAIL";
   report.finishedAt = new Date().toISOString();

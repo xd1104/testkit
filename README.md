@@ -37,7 +37,14 @@ node server.js
 
 ## 測試項目：Game 完整度
 
-**判定規則**：拿測試網跟主網比對，**Provider 清單 + 每個 Provider 底下的 game 清單完全一致才 PASS**；有差異則 FAIL，報告列出差在哪。
+**判定規則**：拿測試網跟主網比對，以下全部一致才 PASS，有任一差異則 FAIL（報告列出差在哪）：
+
+- Provider 清單（誰有誰沒有）
+- 每個 Provider 底下的 game 清單（誰有誰沒有）
+- Provider icon（比路徑/檔名，忽略網域）
+- Game icon（比路徑/檔名，忽略網域）
+
+> icon 為何只比路徑：每站有自己的圖片網域（例 `img2.tuktukbet99.com` vs `img2.lapdee88.com`），但路徑通常相同（`/Theme/.../pgsoft.webp`）。直接比整串 URL 會全部誤判，所以只比路徑。
 
 資料來源（純打 API、不經過 AI、零成本）：
 

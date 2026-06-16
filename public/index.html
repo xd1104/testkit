@@ -45,6 +45,9 @@
   .tag { font-size: 11px; padding: 1px 6px; border-radius: 4px; margin-right: 6px; }
   .tag.miss { background: #3a1a1a; color: var(--fail); }
   .tag.extra { background: #1a2e3a; color: var(--accent); }
+  .tag.icon { background: #3a3119; color: #e6b34f; }
+  .iconpath { color: var(--muted); font-size: 11px; margin-top: 4px;
+    word-break: break-all; font-family: monospace; }
   .runs a { color: var(--accent); text-decoration: none; }
   .runrow { display: flex; justify-content: space-between; font-size: 13px;
     padding: 8px 0; border-bottom: 1px solid var(--line); }
@@ -127,10 +130,19 @@ function renderReport(r) {
     ].join("");
     diffs += `<div class="diff"><h4>Provider 差異</h4>${rows}</div>`;
   }
+  if ((r.providerIconDiffs || []).length) {
+    const rows = r.providerIconDiffs.map((p) =>
+      `<div class="row"><span class="tag icon">icon 不同</span>${esc(p.providerName)} <span style="color:var(--muted)">(${esc(p.lobbyKey)})</span>
+        <div class="iconpath">主：${esc(p.mainIcon)}<br>測：${esc(p.testIcon)}</div></div>`
+    ).join("");
+    diffs += `<div class="diff"><h4>Provider icon 差異</h4>${rows}</div>`;
+  }
   for (const d of (r.lobbyDiffs || [])) {
     const rows = [
       ...d.missing.map((g) => `<div class="row"><span class="tag miss">缺</span>${esc(g.gameName)} <span style="color:var(--muted)">(${esc(g.gameCode)})</span></div>`),
       ...d.extra.map((g) => `<div class="row"><span class="tag extra">多</span>${esc(g.gameName)} <span style="color:var(--muted)">(${esc(g.gameCode)})</span></div>`),
+      ...(d.iconChanged || []).map((g) => `<div class="row"><span class="tag icon">icon 不同</span>${esc(g.gameName)} <span style="color:var(--muted)">(${esc(g.gameCode)})</span>
+        <div class="iconpath">主：${esc(g.mainIcon)}<br>測：${esc(g.testIcon)}</div></div>`),
     ].join("");
     diffs += `<div class="diff"><h4>${esc(d.providerName)} — 主網 ${d.mainCount} / 測試網 ${d.testCount}</h4>${rows}</div>`;
   }
@@ -144,7 +156,9 @@ function renderReport(r) {
     <div>
       <span class="stat">Provider 主網 ${s.mainProviders} / 測試網 ${s.testProviders}</span>
       <span class="stat">Provider 差異 ${(s.providerMissing||0)+(s.providerExtra||0)}</span>
+      <span class="stat">Provider icon 差異 ${s.providerIconDiff||0}</span>
       <span class="stat">Game 有差異的 Provider ${s.lobbiesWithGameDiff||0}</span>
+      <span class="stat">Game icon 差異 ${s.gameIconDiff||0}</span>
     </div>
     <div class="dlbar">
       <button class="dl" onclick="downloadReport('md')">下載報告 (.md)</button>
@@ -169,7 +183,9 @@ function buildMarkdown(r) {
   L.push(`## 結果：${r.result}`);
   L.push(`- Provider 數量：主網 ${s.mainProviders} / 測試網 ${s.testProviders}`);
   L.push(`- Provider 差異：${(s.providerMissing||0)+(s.providerExtra||0)}`);
+  L.push(`- Provider icon 差異：${s.providerIconDiff||0}`);
   L.push(`- Game 有差異的 Provider：${s.lobbiesWithGameDiff||0}`);
+  L.push(`- Game icon 差異：${s.gameIconDiff||0}`);
   L.push("");
   if (r.result === "PASS") {
     L.push("✅ 測試網與主網完全一致，無差異。");
@@ -182,12 +198,26 @@ function buildMarkdown(r) {
     pd.onlyInTest.forEach((p) => L.push(`- ➕ 測試網多：${p.providerName} (${p.lobbyKey})`));
     L.push("");
   }
+  if ((r.providerIconDiffs || []).length) {
+    L.push("## Provider icon 差異");
+    r.providerIconDiffs.forEach((p) => {
+      L.push(`- ⚠️ ${p.providerName} (${p.lobbyKey})`);
+      L.push(`  - 主：${p.mainIcon}`);
+      L.push(`  - 測：${p.testIcon}`);
+    });
+    L.push("");
+  }
   if ((r.lobbyDiffs || []).length) {
-    L.push("## Game 清單差異");
+    L.push("## Game 差異");
     for (const d of r.lobbyDiffs) {
       L.push(`### ${d.providerName} （${d.lobbyKey}） — 主網 ${d.mainCount} / 測試網 ${d.testCount}`);
       d.missing.forEach((g) => L.push(`- ❌ 缺：${g.gameName} (${g.gameCode})`));
       d.extra.forEach((g) => L.push(`- ➕ 多：${g.gameName} (${g.gameCode})`));
+      (d.iconChanged || []).forEach((g) => {
+        L.push(`- ⚠️ icon 不同：${g.gameName} (${g.gameCode})`);
+        L.push(`  - 主：${g.mainIcon}`);
+        L.push(`  - 測：${g.testIcon}`);
+      });
       L.push("");
     }
   }
