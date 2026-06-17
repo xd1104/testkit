@@ -27,6 +27,9 @@
   .progress { display: none; }
   .bar { height: 8px; background: #0f1115; border-radius: 6px; overflow: hidden; margin: 10px 0; }
   .bar > i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .2s; }
+  .bar > i.indet { background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    background-size: 40% 100%; background-repeat: no-repeat; animation: indet 1.2s infinite linear; }
+  @keyframes indet { 0% { background-position: -40% 0; } 100% { background-position: 140% 0; } }
   .pmsg { font-size: 13px; color: var(--muted); }
   .verdict { font-size: 26px; font-weight: 800; }
   .verdict.PASS { color: var(--ok); } .verdict.FAIL { color: var(--fail); }
@@ -313,8 +316,13 @@ $("#go").onclick = () => {
     const p = JSON.parse(e.data);
     $("#pmsg").textContent = p.message;
     if (p.phase === "games" && p.total) {
+      $("#barfill").classList.remove("indet");
       $("#barfill").style.width = Math.round((p.current / p.total) * 100) + "%";
       $("#psub").textContent = `${p.current} / ${p.total}`;
+    } else if (p.phase === "ai") {
+      // AI 執行時長度不定，用跑馬燈動畫表示「進行中」
+      $("#barfill").classList.add("indet");
+      $("#barfill").style.width = "100%";
     }
   });
   es.addEventListener("done", (e) => {

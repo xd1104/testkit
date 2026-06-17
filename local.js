@@ -52,8 +52,17 @@ const server = http.createServer(async (req, res) => {
     const emit = (event, data) => res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
     const t0 = Date.now();
     try {
-      emit("progress", { phase: "ai", current: 0, total: 1, message: "Claude 正在執行測試…（視站況約 30–120 秒）" });
-      const text = await ai.run(test.buildPrompt(u.query), { allowedTools: ["Bash"], timeoutMs: 360000 });
+      emit("progress", { phase: "ai", message: "Claude 啟動中…" });
+      let n = 0;
+      const text = await ai.runStream(test.buildPrompt(u.query), {
+        allowedTools: ["Bash"],
+        timeoutMs: 360000,
+        onEvent: (ev) => {
+          n++;
+          const icon = ev.kind === "tool" ? "🔧" : "💬";
+          emit("progress", { phase: "ai", message: `(${n}) ${icon} ${ev.text}` });
+        },
+      });
       const report = ai.extractJson(text);
       if (!report) throw new Error("Claude 沒有回傳可解析的 JSON 報告");
       Object.assign(report, {
