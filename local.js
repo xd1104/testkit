@@ -53,7 +53,7 @@ const server = http.createServer(async (req, res) => {
     const t0 = Date.now();
     try {
       emit("progress", { phase: "ai", current: 0, total: 1, message: "Claude 正在執行測試…（視站況約 30–120 秒）" });
-      const text = await ai.run(test.buildPrompt(u.query), { allowedTools: ["Bash"], timeoutMs: 240000 });
+      const text = await ai.run(test.buildPrompt(u.query), { allowedTools: ["Bash"], timeoutMs: 360000 });
       const report = ai.extractJson(text);
       if (!report) throw new Error("Claude 沒有回傳可解析的 JSON 報告");
       Object.assign(report, {

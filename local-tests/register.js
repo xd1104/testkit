@@ -9,42 +9,45 @@ const inputs = [
 
 function buildPrompt(params) {
   const site = params.siteUrl;
-  return `你是一個自動化測試執行器。請對目標站實際執行「註冊 → 登入 → 登出」測試，最後只用 JSON 回報結果。
+  return `你是自動化測試執行器，對目標站實際跑「註冊 → 登入 → 登出」，最後只輸出 JSON。請快、別繞路。
 
 目標站：${site}
 
-【背景知識｜這套博弈平台的 API】
-- API 在 wallet host。做法：抓目標站首頁 HTML，找到 /_next/static/chunks/pages/_app-*.js，在該檔內容找 HOST_URL，取得 https://wallet.<domain>。
-- 所有請求都要帶 header：Origin 與 Referer 設為目標站（${site}）。
-- 註冊：POST <wallet>/func/player/register，Content-Type: application/x-www-form-urlencoded。
-  欄位：username, password, confirm_password, reg_type, type, countryCode, device_id（UUID v4）, mobile_no。
-  其中 reg_type / type / countryCode / mobile_no 的有效值「每個站可能不同」（不同國家、不同手機碼數規則）。
-  先用合理預設嘗試；若失敗，讀回傳的錯誤訊息（description 欄位）推斷正確值後重試，最多 5 次。
-  成功的判斷：回傳 JSON 的 code === "0"。
-- 登入：POST <wallet>/j_spring_security_check，form，參數名是 j_username 與 j_password（注意不是 username/password）。
-  成功：code === "0"，且回應的 set-cookie 會有 JSESSIONID。
-- 登出：GET <wallet>/func/j_spring_security_logout，請帶上登入拿到的 JSESSIONID cookie。成功：code === "0"。
+【重要執行原則】
+- 一律用 curl 做 HTTP，不要用 node -e 或寫檔（避免 shell 引號問題、也別碰 Write 工具）。
+- 所有請求帶 header：-H "Origin: ${site.replace(/\/$/, "")}" -H "Referer: ${site}" -H "User-Agent: Mozilla/5.0"。
+- 不要在 minified JS 裡亂 grep 試半天；照下面的明確步驟做。
 
-【帳號】
-- username 用 qa + 今天日期(YYMMDD) + 4 碼隨機英數，例如 qa260616a3f9。
-- password 用 abc123，confirm_password 與 password 相同。
+【步驟 1：找 wallet host】
+curl -s "${site}" 取首頁，grep 出 /_next/static/chunks/pages/_app-*.js 的路徑，curl 該檔，grep "HOST_URL"，得到 https://wallet.<domain>。
 
-【執行方式】
-- 用 Bash（curl 或 node 都可）實際打這三支 API。
-- 三步都要做：先註冊、再用同一組帳密登入、最後登出。
+【步驟 2：找這個站的註冊預設值（國碼等，每站不同）】
+這套平台的註冊欄位預設值放在「register 頁的 chunk」。做法：
+- curl -s "${site}" 首頁，grep 出 /_next/static/chunks/pages/register-*.js 的路徑（若首頁沒有，先 grep buildId，再看 _buildManifest.js）。
+- curl 該 register chunk，grep "countryCode" → 會看到類似 countryCode:"+66",type:"30" 這種預設值。
+- 用這裡讀到的 countryCode（含 +）與 type。reg_type 一般是 "10"（若失敗再試 "20"）。
 
-【輸出格式｜非常重要】
-全部做完後，你的「最後一則訊息」只輸出以下 JSON，不要任何其他文字、不要 markdown 圍欄：
+【步驟 3：註冊】POST <wallet>/func/player/register，Content-Type application/x-www-form-urlencoded，用 curl -d 帶這些欄位：
+  username, password=abc123, confirm_password=abc123, reg_type, type, countryCode（步驟2讀到的）, device_id（隨機 UUID）, mobile_no
+  - mobile_no：用該國合理的手機號（例如泰國 0 開頭 10 碼）。若回 code 不是 "0"，讀 description 調整（多半是手機碼數或國碼），最多重試 3 次。
+  - 帳號 username：優先用 qa+今天YYMMDD+4碼隨機；若該站要求 username 必須是手機號，就改用 mobile_no 當 username。
+  - 成功 = 回傳 JSON 的 code === "0"。
+
+【步驟 4：登入】curl -s -c cookies 暫存檔 POST <wallet>/j_spring_security_check，-d "j_username=<剛註冊的>&j_password=abc123"（參數名是 j_username / j_password）。成功 = code === "0"。
+
+【步驟 5：登出】curl -s -b 同一個 cookie 暫存檔 GET <wallet>/func/j_spring_security_logout。成功 = code === "0"。
+
+【輸出｜最後一則訊息只輸出這個 JSON，不要其他文字、不要 markdown 圍欄】
 {
   "walletHost": "https://wallet.<domain>",
   "account": { "username": "<實際用的>", "password": "abc123" },
-  "fieldsUsed": { "countryCode": "<最後成功的>", "reg_type": "<...>", "type": "<...>", "mobile_no_len": <數字> },
+  "fieldsUsed": { "countryCode": "<最後成功>", "reg_type": "<...>", "type": "<...>", "mobile_no": "<最後成功>" },
   "steps": [
-    { "name": "註冊", "status": "PASS" 或 "FAIL", "detail": "<簡短說明，例如成功或錯誤訊息、嘗試了幾次>" },
-    { "name": "登入", "status": "PASS" 或 "FAIL", "detail": "<...>" },
-    { "name": "登出", "status": "PASS" 或 "FAIL", "detail": "<...>" }
+    { "name": "註冊", "status": "PASS"或"FAIL", "detail": "<簡短，例如 success / 錯誤訊息 / 試了幾次>" },
+    { "name": "登入", "status": "PASS"或"FAIL", "detail": "<...>" },
+    { "name": "登出", "status": "PASS"或"FAIL", "detail": "<...>" }
   ],
-  "result": "PASS"（三步全過）或 "FAIL"
+  "result": "PASS"或"FAIL"
 }`;
 }
 
