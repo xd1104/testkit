@@ -75,8 +75,12 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(PORT, () => {
   console.log(`本機 runner 已啟動 → http://localhost:${PORT}`);
-  if (!ai.isAvailable())
-    console.log("⚠️  偵測不到 claude CLI —— 本機 runner 需要安裝並登入 Claude Code 才能執行測試。");
-  else
-    console.log("✓ 已偵測到 claude CLI（測試會走你的 Claude Code 訂閱）");
+  if (ai.isAvailable()) {
+    console.log("✓ claude CLI + OAuth token 就緒（測試會走你的 Claude Code 訂閱）");
+  } else {
+    console.log("⚠️  尚未就緒。請確認：");
+    console.log("   1) 已安裝 claude CLI");
+    console.log("   2) 已用 `claude setup-token` 產生 token，並把 token 放進專案根目錄的 .claude-token 檔");
+    console.log("      （或設環境變數 CLAUDE_CODE_OAUTH_TOKEN）");
+  }
 });
