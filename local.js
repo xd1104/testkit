@@ -1,0 +1,82 @@
+// 本機 runner：跑在你自己的電腦上，測試由 Claude Code（headless）主導執行，走你的訂閱、不需 API key。
+// 用途：跨站適應的測試（例如註冊，欄位規則每站不同），以及之後的瀏覽器表單驗證測試。
+// 啟動：在「已登入 Claude Code 的終端機」執行  node local.js
+const http = require("http");
+const fs = require("fs");
+const path = require("path");
+const url = require("url");
+const localTests = require("./local-tests");
+const ai = require("./lib/ai");
+
+const PORT = process.env.LOCAL_PORT || 4600;
+const RUNS_DIR = path.join(__dirname, "runs");
+if (!fs.existsSync(RUNS_DIR)) fs.mkdirSync(RUNS_DIR, { recursive: true });
+
+function send(res, code, type, body) { res.writeHead(code, { "Content-Type": type }); res.end(body); }
+function json(res, code, obj) { send(res, code, "application/json; charset=utf-8", JSON.stringify(obj)); }
+
+function saveRun(report) {
+  const runId = report.finishedAt.replace(/[:.]/g, "-") + "_" + report.testId;
+  report.runId = runId;
+  fs.writeFileSync(path.join(RUNS_DIR, runId + ".json"), JSON.stringify(report, null, 2));
+  return runId;
+}
+function listRuns() {
+  return fs.readdirSync(RUNS_DIR).filter((f) => f.endsWith(".json")).map((f) => {
+    try {
+      const r = JSON.parse(fs.readFileSync(path.join(RUNS_DIR, f), "utf8"));
+      return { runId: r.runId, testId: r.testId, name: r.name, result: r.result,
+        testUrl: r.testUrl || r.siteUrl, finishedAt: r.finishedAt, durationMs: r.durationMs };
+    } catch { return null; }
+  }).filter(Boolean).sort((a, b) => (a.finishedAt < b.finishedAt ? 1 : -1));
+}
+
+const server = http.createServer(async (req, res) => {
+  const u = url.parse(req.url, true);
+
+  if (u.pathname === "/" || u.pathname === "/index.html")
+    return send(res, 200, "text/html; charset=utf-8", fs.readFileSync(path.join(__dirname, "public", "index.html")));
+  if (u.pathname === "/api/tests") return json(res, 200, localTests.list());
+  if (u.pathname === "/api/runs") return json(res, 200, listRuns());
+  if (u.pathname.startsWith("/api/runs/")) {
+    const id = decodeURIComponent(u.pathname.slice("/api/runs/".length));
+    const f = path.join(RUNS_DIR, id + ".json");
+    if (!fs.existsSync(f)) return json(res, 404, { error: "not found" });
+    return send(res, 200, "application/json; charset=utf-8", fs.readFileSync(f));
+  }
+
+  if (u.pathname === "/api/run") {
+    const test = localTests.get(u.query.testId);
+    if (!test) return json(res, 400, { error: "unknown testId" });
+    res.writeHead(200, { "Content-Type": "text/event-stream; charset=utf-8", "Cache-Control": "no-cache", Connection: "keep-alive" });
+    const emit = (event, data) => res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+    const t0 = Date.now();
+    try {
+      emit("progress", { phase: "ai", current: 0, total: 1, message: "Claude 正在執行測試…（視站況約 30–120 秒）" });
+      const text = await ai.run(test.buildPrompt(u.query), { allowedTools: ["Bash"], timeoutMs: 240000 });
+      const report = ai.extractJson(text);
+      if (!report) throw new Error("Claude 沒有回傳可解析的 JSON 報告");
+      Object.assign(report, {
+        testId: test.id, name: test.name, siteUrl: u.query.siteUrl,
+        startedAt: new Date(t0).toISOString(), finishedAt: new Date().toISOString(),
+        durationMs: Date.now() - t0,
+      });
+      if (!report.result) report.result = (report.steps || []).every((s) => s.status === "PASS") ? "PASS" : "FAIL";
+      saveRun(report);
+      emit("done", report);
+    } catch (e) {
+      emit("error", { message: String((e && e.message) || e) });
+    }
+    return res.end();
+  }
+
+  json(res, 404, { error: "not found" });
+});
+
+server.listen(PORT, () => {
+  console.log(`本機 runner 已啟動 → http://localhost:${PORT}`);
+  if (!ai.isAvailable())
+    console.log("⚠️  偵測不到 claude CLI —— 本機 runner 需要安裝並登入 Claude Code 才能執行測試。");
+  else
+    console.log("✓ 已偵測到 claude CLI（測試會走你的 Claude Code 訂閱）");
+});

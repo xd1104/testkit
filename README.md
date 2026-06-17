@@ -33,6 +33,25 @@ node server.js
 
 > 免費方案特性：閒置約 15 分鐘會休眠（下次喚醒等 ~30-60 秒）；硬碟是暫時的，歷史紀錄重啟後會清空（報告當下可下載，不受影響）。
 
+### 本機 runner（AI 驅動，跑在你電腦上）
+
+有些測試（例如註冊：欄位規則每站不同）需要「臨機應變」，這種交給 **Claude Code 主導執行**——它自己摸清楚該站規則、執行、判斷、回報。本機 runner 走你的 **Claude Code 訂閱、不需 API key、不額外花錢**。
+
+啟動（要在**已登入 Claude Code 的終端機**執行）：
+
+```powershell
+npm run local      # 或 node local.js
+```
+
+開 http://localhost:4600，用法跟主工具一樣（同一個網頁 UI）。差別：
+
+- 測試**由 Claude Code 實際操作**（headless `claude -p`，放行 `Bash` 讓它打 API），而不是寫死的程式。
+- 因此能適應各種不同的站／規則，不用逐站維護設定。
+- 只能在本機跑（線上 Render 沒有登入你的 Claude Code）。
+- 測試任務定義在 `local-tests/`（每個是一份給 Claude 的 prompt），執行邏輯在 `local.js` + `lib/ai.js`。
+
+> 線上版 vs 本機 runner：**能寫死的、要常跑的、要線上的 → 線上版（免費、deterministic）**；**要臨機應變的、跨站適應的、要瀏覽器的 → 本機 runner（走訂閱）**。
+
 ---
 
 ## 測試項目
@@ -146,21 +165,26 @@ Render 自動重新部署，網頁下拉選單就會自動多出新項目。
 
 ```
 testkit/
-├── server.js                  # 本機 server：前端 + 觸發測試(SSE 即時進度) + 歷史 + 密碼
-├── package.json               # 啟動設定 (npm start → node server.js)
+├── server.js                  # 線上版 server：前端 + 觸發測試(SSE) + 歷史 + 密碼
+├── local.js                   # 本機 runner：測試交給 Claude Code(headless) 執行
+├── package.json               # 啟動設定 (npm start / npm run local)
 ├── render.yaml                # Render 部署設定
 ├── lib/
 │   ├── fetcher.js             # 抓資料：探測 wallet host、抓 provider、抓 lobby 的 game
 │   ├── collect.js             # 共用：一次收集兩站的 provider + game 資料
-│   └── http.js                # 通用 HTTPS 請求（POST/cookie），給流程型測試用
-├── tests/
+│   ├── http.js                # 通用 HTTPS 請求（POST/cookie），給流程型測試用
+│   └── ai.js                  # 透過 headless Claude Code 執行任務（走訂閱）
+├── tests/                     # 線上版測試（deterministic，純程式）
 │   ├── index.js               # 測試項目註冊表
 │   ├── count-compare.js       # 「Provider & Game 數量比對」
 │   ├── icon-compare.js        # 「Provider & Game Icon 比對」
-│   └── register-login-logout.js # 「註冊 / 登入 / 登出」E2E
+│   └── register-login-logout.js # 「註冊 / 登入 / 登出」E2E（寫死欄位，限對應國家的站）
+├── local-tests/               # 本機 runner 測試（AI 驅動，每個是給 Claude 的 prompt）
+│   ├── index.js
+│   └── register.js            # 「註冊 / 登入 / 登出（AI）」跨站適應
 ├── public/
-│   └── index.html             # 前端網頁（單檔）
+│   └── index.html             # 前端網頁（單檔，線上版與本機 runner 共用）
 └── runs/                      # 每次測試報告的 JSON（已被 .gitignore 排除）
 ```
 
-零外部依賴，純 Node（需 Node 18 以上）。
+零外部依賴，純 Node（需 Node 18 以上）。本機 runner 另需安裝並登入 Claude Code。
