@@ -52,25 +52,32 @@ const server = http.createServer(async (req, res) => {
     const emit = (event, data) => res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
     const t0 = Date.now();
     try {
-      emit("progress", { phase: "ai", message: "Claude 啟動中…" });
-      let n = 0;
-      const text = await ai.runStream(test.buildPrompt(u.query), {
-        allowedTools: ["Bash"],
-        timeoutMs: 360000,
-        onEvent: (ev) => {
-          n++;
-          const icon = ev.kind === "tool" ? "🔧" : "💬";
-          emit("progress", { phase: "ai", message: `(${n}) ${icon} ${ev.text}` });
-        },
-      });
-      const report = ai.extractJson(text);
-      if (!report) throw new Error("Claude 沒有回傳可解析的 JSON 報告");
-      Object.assign(report, {
-        testId: test.id, name: test.name, siteUrl: u.query.siteUrl,
-        startedAt: new Date(t0).toISOString(), finishedAt: new Date().toISOString(),
-        durationMs: Date.now() - t0,
-      });
-      if (!report.result) report.result = (report.steps || []).every((s) => s.status === "PASS") ? "PASS" : "FAIL";
+      let report;
+      if (typeof test.run === "function") {
+        // 程式驅動的本機測試（例如 Playwright 表單驗證）
+        report = await test.run(u.query, (p) => emit("progress", p));
+      } else {
+        // Claude 主導的本機測試（buildPrompt → headless Claude Code 執行）
+        emit("progress", { phase: "ai", message: "Claude 啟動中…" });
+        let n = 0;
+        const text = await ai.runStream(test.buildPrompt(u.query), {
+          allowedTools: ["Bash"],
+          timeoutMs: 360000,
+          onEvent: (ev) => {
+            n++;
+            const icon = ev.kind === "tool" ? "🔧" : "💬";
+            emit("progress", { phase: "ai", message: `(${n}) ${icon} ${ev.text}` });
+          },
+        });
+        report = ai.extractJson(text);
+        if (!report) throw new Error("Claude 沒有回傳可解析的 JSON 報告");
+        Object.assign(report, {
+          testId: test.id, name: test.name, siteUrl: u.query.siteUrl,
+          startedAt: new Date(t0).toISOString(), finishedAt: new Date().toISOString(),
+          durationMs: Date.now() - t0,
+        });
+        if (!report.result) report.result = (report.steps || []).every((s) => s.status === "PASS") ? "PASS" : "FAIL";
+      }
       saveRun(report);
       emit("done", report);
     } catch (e) {
