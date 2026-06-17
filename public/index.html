@@ -157,8 +157,9 @@ function renderReport(r) {
   }
   // 流程型測試（註冊/登入/登出）：顯示每一步
   if (r.steps && r.steps.length) {
+    const tagClass = (s) => (s === "PASS" ? "ok" : s === "WARN" ? "icon" : "miss");
     const rows = r.steps.map((st) =>
-      `<div class="row"><span class="tag ${st.status === "PASS" ? "ok" : "miss"}">${st.status}</span>${esc(st.name)} <span style="color:var(--muted)">— ${esc(st.detail)}</span></div>`
+      `<div class="row"><span class="tag ${tagClass(st.status)}">${st.status}</span>${esc(st.name)} <span style="color:var(--muted)">— ${esc(st.detail)}</span></div>`
     ).join("");
     diffs = `<div class="diff"><h4>測試步驟</h4>${rows}</div>` + diffs;
   } else if (r.result === "PASS") {
@@ -216,7 +217,7 @@ function buildMarkdown(r) {
   L.push("");
   L.push(`## 結果：${r.result}`);
   if (r.steps) {
-    r.steps.forEach((st) => L.push(`- ${st.status === "PASS" ? "✅" : "❌"} ${st.name}：${st.detail}`));
+    r.steps.forEach((st) => L.push(`- ${st.status === "PASS" ? "✅" : st.status === "WARN" ? "⚠️" : "❌"} ${st.name}：${st.detail}`));
     return L.join("\n");
   }
   if (s.mainProviders != null) L.push(`- Provider 數量：主網 ${s.mainProviders} / 測試網 ${s.testProviders}`);
