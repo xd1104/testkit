@@ -43,12 +43,14 @@ node server.js
 npm run local      # 或 node local.js
 ```
 
-開 http://localhost:4600，用法跟主工具一樣（同一個網頁 UI）。差別：
+開 http://localhost:4600，用法跟主工具一樣（同一個網頁 UI）。本機測試有兩種：
 
-- 測試**由 Claude Code 實際操作**（headless `claude -p`，放行 `Bash` 讓它打 API），而不是寫死的程式。
-- 因此能適應各種不同的站／規則，不用逐站維護設定。
-- 只能在本機跑（線上 Render 沒有登入你的 Claude Code）。
-- 測試任務定義在 `local-tests/`（每個是一份給 Claude 的 prompt），執行邏輯在 `local.js` + `lib/ai.js`。
+- **Claude 主導型**（`local-tests/*.js` 有 `buildPrompt`）：headless `claude -p` 放行 `Bash` 自己摸規則、執行、回 JSON。例：`register.js`（註冊/登入/登出，跨站自適應）。
+- **程式驅動型**（`local-tests/*.js` 有 `run()`）：用 Playwright 等實際操作，結構檢查寫死、模糊判斷再呼叫 `lib/ai.js` 給 Claude 判。例：`form-validation.js`（註冊表單驗證）。
+
+兩種都只能在本機跑（線上 Render 沒有登入你的 Claude Code）。執行邏輯在 `local.js` + `lib/ai.js`。
+
+`form-validation.js` 涵蓋 6 項：①號碼欄位擋非數字 ②逐欄位必填 ③電話長度邊界值(8/9/10/11) ④密碼規則 ⑤錯誤提示正確性 ⑥重複手機號。結果除 PASS/FAIL 外有 **WARN**（無法確認，例如該站註冊為多步驟導致重複號測不準）；WARN 不算失敗。錯誤提示可能是 toast 或欄位旁紅字，用「填錯→送出→抓新出現文字」捕捉，故每個情境會重載頁面避免上一輪 toast 殘留。
 
 > 線上版 vs 本機 runner：**能寫死的、要常跑的、要線上的 → 線上版（免費、deterministic）**；**要臨機應變的、跨站適應的、要瀏覽器的 → 本機 runner（走訂閱）**。
 
@@ -93,7 +95,7 @@ npm run local      # 或 node local.js
 
 帳號命名：`qa` + 日期(YYMMDD) + 4 碼隨機（例 `qa260616a3f9`）。`eventData` 那包追蹤資料後端不需要，不送。系統參數 `reg_type/countryCode/type` 是這套品牌（孟加拉）的固定值，換品牌可能要調。
 
-> 此項仍是純 API（輕量、可線上）。前端表單驗證測試（擋字、錯誤提示）才需要瀏覽器，屬於之後的本機 runner。
+> 此項仍是純 API（輕量、可線上）。前端表單驗證測試（擋字、錯誤提示）需要瀏覽器，已做在本機 runner 的 `form-validation.js`。
 
 資料來源（純打 API、不經過 AI、零成本）：
 
@@ -179,7 +181,8 @@ testkit/
 │   ├── count-compare.js       # 「Provider & Game 數量比對」
 │   ├── icon-compare.js        # 「Provider & Game Icon 比對」
 │   └── register-login-logout.js # 「註冊 / 登入 / 登出」E2E（寫死欄位，限對應國家的站）
-├── local-tests/               # 本機 runner 測試（AI 驅動，每個是給 Claude 的 prompt）
+├── local-tests/               # 本機 runner 測試（Claude 主導 prompt 或 Playwright 程式驅動）
+│   ├── form-validation.js     # 「註冊表單驗證」6 項（Playwright + Claude 判斷）
 │   ├── index.js
 │   └── register.js            # 「註冊 / 登入 / 登出（AI）」跨站適應
 ├── public/
