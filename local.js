@@ -37,6 +37,15 @@ const server = http.createServer(async (req, res) => {
   if (u.pathname === "/" || u.pathname === "/index.html")
     return send(res, 200, "text/html; charset=utf-8", fs.readFileSync(path.join(__dirname, "public", "index.html")));
   if (u.pathname === "/api/tests") return json(res, 200, localTests.list());
+
+  // B 類：產生指令（不執行，回傳填好網址的 prompt 給使用者複製）
+  if (u.pathname === "/api/prompt") {
+    const test = localTests.get(u.query.testId);
+    if (!test || typeof test.buildPrompt !== "function")
+      return json(res, 400, { error: "unknown testId or not a prompt test" });
+    return json(res, 200, { prompt: test.buildPrompt(u.query) });
+  }
+
   if (u.pathname === "/api/runs") return json(res, 200, listRuns());
   if (u.pathname.startsWith("/api/runs/")) {
     const id = decodeURIComponent(u.pathname.slice("/api/runs/".length));

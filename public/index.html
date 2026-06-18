@@ -109,6 +109,8 @@ function renderInputs() {
   $("#inputs").innerHTML = t.inputs.map((i) =>
     `<label>${i.label}</label><input id="in_${i.key}" placeholder="${i.placeholder || ""}" />`
   ).join("");
+  // B 類顯示「產生指令」，A 類顯示「開始測試」
+  $("#go").textContent = t.mode === "prompt" ? "產生指令" : "開始測試";
 }
 
 function esc(s) { return String(s == null ? "" : s).replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c])); }
@@ -297,6 +299,31 @@ function copyReport() {
   );
 }
 
+async function generatePrompt(t, params) {
+  $("#go").disabled = true;
+  $("#reportBox").innerHTML = "";
+  try {
+    const r = await (await fetch("/api/prompt?" + params.toString())).json();
+    const text = r.prompt || "（產生失敗）";
+    window.__lastPrompt = text;
+    $("#reportBox").innerHTML = `<div class="card">
+      <div style="font-size:15px;font-weight:600;margin-bottom:6px">📋 複製這段指令，貼到你自己的 Claude 對話（要有 Claude in Chrome）</div>
+      <div class="meta">Claude 會開瀏覽器實際測這個站，報告會出現在那邊的對話裡。</div>
+      <div class="dlbar"><button class="dl" onclick="copyPrompt()">複製指令</button></div>
+      <textarea id="promptBox" readonly style="width:100%;height:320px;margin-top:8px;background:#0f1115;color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:12px;font-size:13px;line-height:1.5;box-sizing:border-box">${esc(text)}</textarea>
+    </div>`;
+  } catch (e) {
+    $("#reportBox").innerHTML = `<div class="card err">✗ 產生指令失敗：${esc(String(e.message || e))}</div>`;
+  }
+  $("#go").disabled = false;
+}
+function copyPrompt() {
+  navigator.clipboard.writeText(window.__lastPrompt || "").then(
+    () => alert("指令已複製，貼到你的 Claude 對話即可"),
+    () => { const b = $("#promptBox"); if (b) { b.select(); document.execCommand("copy"); alert("已複製"); } }
+  );
+}
+
 $("#go").onclick = () => {
   const t = curTest();
   const params = new URLSearchParams({ testId: t.id });
@@ -305,6 +332,8 @@ $("#go").onclick = () => {
     if (!v) { alert("請填寫 " + i.label); return; }
     params.set(i.key, v);
   }
+  // B 類：產生指令給使用者複製，不執行
+  if (t.mode === "prompt") { generatePrompt(t, params); return; }
   $("#go").disabled = true;
   $("#reportBox").innerHTML = "";
   $("#progress").style.display = "block";

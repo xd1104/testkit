@@ -1,9 +1,11 @@
-// 本機 AI 測試註冊表（這些測試由 Claude Code 主導執行，只在本機跑）
+// 本機測試註冊表
+// 兩種類型：
+//   A 類（執行）：buildPrompt → 由 headless Claude Code 跑（如 register），或有 run() 的程式驅動
+//   B 類（產生指令，mode:"prompt"）：工具不跑，產生 prompt 給使用者複製到自己的 Claude 對話
 const aiRegister = require("./register");
-const formValidation = require("./form-validation");
-const formValidationAi = require("./form-validation-ai");
+const formValidationPrompt = require("./form-validation-prompt");
 
-const tests = [aiRegister, formValidation, formValidationAi];
+const tests = [aiRegister, formValidationPrompt];
 
 const registry = new Map(tests.map((t) => [t.id, t]));
 
@@ -12,6 +14,7 @@ function list() {
     id: t.id,
     name: t.name,
     description: t.description || "",
+    mode: t.mode || "auto",
     inputs: t.inputs,
   }));
 }
