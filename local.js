@@ -61,8 +61,8 @@ const server = http.createServer(async (req, res) => {
         emit("progress", { phase: "ai", message: "Claude 啟動中…" });
         let n = 0;
         const text = await ai.runStream(test.buildPrompt(u.query), {
-          allowedTools: ["Bash"],
-          timeoutMs: 360000,
+          allowedTools: ["Bash", "Write"],
+          timeoutMs: 540000,
           onEvent: (ev) => {
             n++;
             const icon = ev.kind === "tool" ? "🔧" : "💬";

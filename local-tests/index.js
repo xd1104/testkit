@@ -1,8 +1,9 @@
 // 本機 AI 測試註冊表（這些測試由 Claude Code 主導執行，只在本機跑）
 const aiRegister = require("./register");
 const formValidation = require("./form-validation");
+const formValidationAi = require("./form-validation-ai");
 
-const tests = [aiRegister, formValidation];
+const tests = [aiRegister, formValidation, formValidationAi];
 
 const registry = new Map(tests.map((t) => [t.id, t]));
 
