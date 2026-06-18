@@ -5,8 +5,15 @@ const http = require("http");
 const fs = require("fs");
 const path = require("path");
 const url = require("url");
-const localTests = require("./local-tests");
+const onlineTests = require("./tests");       // 確定性/API 測試（數量比對、icon 比對、註冊登入登出）
+const localOnlyTests = require("./local-tests"); // AI / 產生指令類
 const ai = require("./lib/ai");
+
+// 本機 runner 顯示「全部」測試：確定性 + AI/產生指令
+const allTests = {
+  list: () => [...onlineTests.list(), ...localOnlyTests.list()],
+  get: (id) => localOnlyTests.get(id) || onlineTests.get(id),
+};
 
 const PORT = process.env.LOCAL_PORT || 4600;
 const RUNS_DIR = path.join(__dirname, "runs");
@@ -36,11 +43,11 @@ const server = http.createServer(async (req, res) => {
 
   if (u.pathname === "/" || u.pathname === "/index.html")
     return send(res, 200, "text/html; charset=utf-8", fs.readFileSync(path.join(__dirname, "public", "index.html")));
-  if (u.pathname === "/api/tests") return json(res, 200, localTests.list());
+  if (u.pathname === "/api/tests") return json(res, 200, allTests.list());
 
   // B 類：產生指令（不執行，回傳填好網址的 prompt 給使用者複製）
   if (u.pathname === "/api/prompt") {
-    const test = localTests.get(u.query.testId);
+    const test = allTests.get(u.query.testId);
     if (!test || typeof test.buildPrompt !== "function")
       return json(res, 400, { error: "unknown testId or not a prompt test" });
     return json(res, 200, { prompt: test.buildPrompt(u.query) });
@@ -55,7 +62,7 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (u.pathname === "/api/run") {
-    const test = localTests.get(u.query.testId);
+    const test = allTests.get(u.query.testId);
     if (!test) return json(res, 400, { error: "unknown testId" });
     res.writeHead(200, { "Content-Type": "text/event-stream; charset=utf-8", "Cache-Control": "no-cache", Connection: "keep-alive" });
     const emit = (event, data) => res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
