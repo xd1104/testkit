@@ -329,7 +329,7 @@ $("#go").onclick = () => {
   const params = new URLSearchParams({ testId: t.id });
   for (const i of t.inputs) {
     const v = $("#in_" + i.key).value.trim();
-    if (!v) { alert("請填寫 " + i.label); return; }
+    if (!v) { if (i.optional) continue; alert("請填寫 " + i.label); return; }
     params.set(i.key, v);
   }
   // B 類：產生指令給使用者複製，不執行
