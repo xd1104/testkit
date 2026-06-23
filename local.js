@@ -11,7 +11,7 @@ const ai = require("./lib/ai");
 
 // 本機 runner 顯示「全部」測試：確定性 + AI/產生指令
 const allTests = {
-  list: () => [...onlineTests.list(), ...localOnlyTests.list()],
+  list: () => [...localOnlyTests.list(), ...onlineTests.list()], // 通用(帳號)在前、遊戲在後
   get: (id) => localOnlyTests.get(id) || onlineTests.get(id),
 };
 

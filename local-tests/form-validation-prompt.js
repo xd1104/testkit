@@ -2,7 +2,8 @@
 // 工具不自己跑，而是產生一段「填好網址 + 內含完整測試指示」的 prompt，
 // 使用者複製到自己的 Claude 對話（需有 Claude in Chrome），由 Claude 開瀏覽器實際測、回報。
 const id = "form-validation-prompt";
-const name = "註冊表單驗證（產生指令）";
+const name = "註冊表單驗證";
+const category = "通用";
 const description =
   "這項需要 AI 開瀏覽器，工具不自己跑。按下會產生一段指令，複製到你自己的 Claude 對話（要有 Claude in Chrome），讓 Claude 開瀏覽器實際測這個站的註冊表單、回報結果。適用各種平台。";
 const mode = "prompt"; // 標記為 B 類：產生指令、不執行
@@ -38,4 +39,4 @@ ${item6}
 【輸出】最後給我一份條列報告：每項一行，PASS/FAIL/WARN + 簡短理由（引用你看到的實際錯誤訊息）。`;
 }
 
-module.exports = { id, name, description, mode, inputs, buildPrompt };
+module.exports = { id, name, description, category, mode, inputs, buildPrompt };

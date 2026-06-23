@@ -50,6 +50,11 @@
   .tag.extra { background: #1a2e3a; color: var(--accent); }
   .tag.icon { background: #3a3119; color: #e6b34f; }
   .tag.ok { background: #14361f; color: var(--ok); }
+  .tabs { display: flex; gap: 8px; margin-bottom: 16px; border-bottom: 1px solid var(--line); }
+  .tab { padding: 8px 16px; cursor: pointer; font-size: 14px; color: var(--muted);
+    border: 0; background: none; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+  .tab:hover { color: var(--txt); }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
   .testdesc:not(:empty) { margin: 10px 0 4px; padding: 10px 12px; background: #0f1115;
     border: 1px solid var(--line); border-radius: 8px; color: var(--muted);
     font-size: 13px; line-height: 1.5; }
@@ -70,6 +75,7 @@
   <div class="sub">選測試項目 → 填網址 → 按開始，跑完顯示報告</div>
 
   <div class="card">
+    <div id="tabs" class="tabs"></div>
     <label>測試項目</label>
     <select id="testId"></select>
     <div id="testDesc" class="testdesc"></div>
@@ -95,12 +101,27 @@
 const $ = (s) => document.querySelector(s);
 let TESTS = [];
 
+let curCategory = null;
 async function loadTests() {
   TESTS = await (await fetch("/api/tests")).json();
-  const sel = $("#testId");
-  sel.innerHTML = TESTS.map((t) => `<option value="${t.id}">${t.name}</option>`).join("");
+  // 依出現順序取得分類（大項）
+  const cats = [...new Set(TESTS.map((t) => t.category || "其他"))];
+  curCategory = cats[0];
+  $("#tabs").innerHTML = cats.map((c) =>
+    `<button class="tab" data-cat="${esc(c)}">${esc(c)}</button>`
+  ).join("");
+  $("#tabs").querySelectorAll(".tab").forEach((b) => {
+    b.onclick = () => { curCategory = b.dataset.cat; renderItems(); };
+  });
+  renderItems();
+  $("#testId").onchange = renderInputs;
+}
+function renderItems() {
+  $("#tabs").querySelectorAll(".tab").forEach((b) =>
+    b.classList.toggle("active", b.dataset.cat === curCategory));
+  const items = TESTS.filter((t) => (t.category || "其他") === curCategory);
+  $("#testId").innerHTML = items.map((t) => `<option value="${t.id}">${esc(t.name)}</option>`).join("");
   renderInputs();
-  sel.onchange = renderInputs;
 }
 function curTest() { return TESTS.find((t) => t.id === $("#testId").value); }
 function renderInputs() {

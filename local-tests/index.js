@@ -14,6 +14,7 @@ function list() {
     id: t.id,
     name: t.name,
     description: t.description || "",
+    category: t.category || "其他",
     mode: t.mode || "auto",
     inputs: t.inputs,
   }));

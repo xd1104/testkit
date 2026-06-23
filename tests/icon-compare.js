@@ -83,4 +83,5 @@ async function run(params, onProgress) {
   return report;
 }
 
-module.exports = { id, name, description, inputs, run };
+const category = "遊戲";
+module.exports = { id, name, description, category, inputs, run };
