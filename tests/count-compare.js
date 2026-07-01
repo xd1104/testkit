@@ -56,7 +56,9 @@ async function run(params, onProgress) {
   for (const p of data.mainProvs) for (const c of p.categories) allCats.add(c);
   for (const p of data.testProvs) for (const c of p.categories) allCats.add(c);
   const cats = [...allCats].filter((c) => !EXCLUDED_CATS.has(c)).sort();
+  const nameOf = (c) => (data.mainByCanon.get(c) || data.testByCanon.get(c) || {}).providerName || c;
   let categoriesWithDiff = 0;
+  let categoriesWithOrderDiff = 0;
   for (const cat of cats) {
     const mainIn = data.mainProvs.filter((p) => p.categories.has(cat));
     const testIn = data.testProvs.filter((p) => p.categories.has(cat));
@@ -65,6 +67,23 @@ async function run(params, onProgress) {
     const onlyInMain = mainIn.filter((p) => !testCatCanon.has(p.canon)).map(provInfo);
     const onlyInTest = testIn.filter((p) => !mainCatCanon.has(p.canon)).map(provInfo);
     if (onlyInMain.length || onlyInTest.length) categoriesWithDiff++;
+
+    // 排序比對（以主網為準）：只比兩站都有的 provider 的相對順序
+    const mainSeq = (data.mainOrder[cat] || []).filter((c) => testCatCanon.has(c));
+    const testSeq = (data.testOrder[cat] || []).filter((c) => mainCatCanon.has(c));
+    const orderDiffers = mainSeq.join("|") !== testSeq.join("|");
+    let order = null;
+    if (orderDiffers) {
+      categoriesWithOrderDiff++;
+      const testPos = new Map(testSeq.map((c, i) => [c, i]));
+      const moved = [];
+      mainSeq.forEach((c, i) => {
+        const j = testPos.get(c);
+        if (j !== i) moved.push({ providerName: nameOf(c), mainPos: i + 1, testPos: j + 1 });
+      });
+      order = { mainSeq: mainSeq.map(nameOf), testSeq: testSeq.map(nameOf), moved };
+    }
+
     report.categories.push({
       category: cat,
       label: catLabel(cat),
@@ -72,6 +91,8 @@ async function run(params, onProgress) {
       testCount: testIn.length,
       onlyInMain,
       onlyInTest,
+      orderDiffers,
+      order,
     });
   }
 
@@ -104,12 +125,14 @@ async function run(params, onProgress) {
     providerMissing: report.providerDiff.onlyInMain.length,
     providerExtra: report.providerDiff.onlyInTest.length,
     categoriesWithDiff,
+    categoriesWithOrderDiff,
     lobbiesWithGameDiff: report.lobbyDiffs.length,
   };
   report.result =
     report.providerDiff.onlyInMain.length === 0 &&
     report.providerDiff.onlyInTest.length === 0 &&
     categoriesWithDiff === 0 &&
+    categoriesWithOrderDiff === 0 &&
     report.lobbyDiffs.length === 0
       ? "PASS"
       : "FAIL";

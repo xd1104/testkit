@@ -159,15 +159,33 @@ function renderReport(r) {
     diffs += `<div class="diff"><h4>Provider 差異（全站）</h4>${rows}</div>`;
   }
   if ((r.categories || []).length) {
+    const orderSeq = (seq, movedNames) => seq.map((n, i) =>
+      `<span style="${movedNames.has(n) ? 'color:var(--fail);font-weight:600' : 'color:var(--muted)'}">${i + 1}.${esc(n)}</span>`
+    ).join(' <span style="color:var(--line)">›</span> ');
     const rows = r.categories.map((c) => {
       const items = [
         ...c.onlyInMain.map((p) => `<span class="tag miss">測缺</span>${esc(p.providerName)}`),
         ...c.onlyInTest.map((p) => `<span class="tag extra">測多</span>${esc(p.providerName)}`),
       ];
-      const detail = items.length
+      const hasCountDiff = c.onlyInMain.length || c.onlyInTest.length;
+      let detail = items.length
         ? items.map((x) => `<div style="margin:2px 0 2px 4px">${x}</div>`).join("")
-        : `<span class="tag ok">一致</span>`;
-      const mark = (c.onlyInMain.length || c.onlyInTest.length) ? ' <span style="color:var(--fail)">✗</span>' : "";
+        : (c.orderDiffers ? "" : `<span class="tag ok">一致</span>`);
+      // 排序差異區塊（以主網為準，清楚標出測試網哪幾家位置變了）
+      if (c.orderDiffers && c.order) {
+        const moved = new Set(c.order.moved.map((m) => m.providerName));
+        const movedList = c.order.moved.map((m) =>
+          `${esc(m.providerName)} <span style="color:var(--muted)">主#${m.mainPos}→測#${m.testPos}</span>`
+        ).join("、");
+        detail += `<div style="margin:6px 0 2px 4px;padding-top:6px;border-top:1px dashed var(--line)">
+          <span class="tag icon">順序不同</span>
+          <div style="margin:6px 0;font-size:12px">位置變動：${movedList}</div>
+          <div style="font-size:12px;line-height:1.9"><span style="display:inline-block;width:34px;color:var(--muted)">主網</span>${orderSeq(c.order.mainSeq, moved)}</div>
+          <div style="font-size:12px;line-height:1.9"><span style="display:inline-block;width:34px;color:var(--muted)">測試</span>${orderSeq(c.order.testSeq, moved)}</div>
+        </div>`;
+      }
+      const mark = hasCountDiff ? ' <span style="color:var(--fail)">✗ 數量</span>'
+        : c.orderDiffers ? ' <span style="color:#e6b34f">⇅ 順序</span>' : "";
       return `<div class="row"><b>${esc(c.label)}</b> <span style="color:var(--muted)">主 ${c.mainCount} / 測 ${c.testCount}</span>${mark}<div style="margin-top:2px">${detail}</div></div>`;
     }).join("");
     diffs += `<div class="diff"><h4>遊戲種類 Provider 差異</h4>${rows}</div>`;
@@ -197,6 +215,7 @@ function renderReport(r) {
   if (s.mainProviders != null) stats.push(`Provider 主網 ${s.mainProviders} / 測試網 ${s.testProviders}`);
   if (s.providerMissing != null || s.providerExtra != null) stats.push(`Provider 差異 ${(s.providerMissing||0)+(s.providerExtra||0)}`);
   if (s.categoriesWithDiff != null) stats.push(`種類有差異 ${s.categoriesWithDiff}`);
+  if (s.categoriesWithOrderDiff != null) stats.push(`種類順序不同 ${s.categoriesWithOrderDiff}`);
   if (s.lobbiesWithGameDiff != null) stats.push(`Game 有差異的 Provider ${s.lobbiesWithGameDiff}`);
   if (s.providerIconDiff != null) stats.push(`Provider icon 差異 ${s.providerIconDiff}`);
   if (s.gameIconDiff != null) stats.push(`Game icon 差異 ${s.gameIconDiff}`);
@@ -234,6 +253,7 @@ function buildMarkdown(r) {
   if (s.mainProviders != null) L.push(`- Provider 數量：主網 ${s.mainProviders} / 測試網 ${s.testProviders}`);
   if (s.providerMissing != null || s.providerExtra != null) L.push(`- Provider 差異：${(s.providerMissing||0)+(s.providerExtra||0)}`);
   if (s.categoriesWithDiff != null) L.push(`- 種類有差異：${s.categoriesWithDiff}`);
+  if (s.categoriesWithOrderDiff != null) L.push(`- 種類順序不同：${s.categoriesWithOrderDiff}`);
   if (s.lobbiesWithGameDiff != null) L.push(`- Game 有差異的 Provider：${s.lobbiesWithGameDiff}`);
   if (s.providerIconDiff != null) L.push(`- Provider icon 差異：${s.providerIconDiff}`);
   if (s.gameIconDiff != null) L.push(`- Game icon 差異：${s.gameIconDiff}`);
@@ -256,6 +276,17 @@ function buildMarkdown(r) {
       L.push(`### ${c.label} — 主網 ${c.mainCount} / 測試網 ${c.testCount}`);
       c.onlyInMain.forEach((p) => L.push(`- ❌ 測試網缺：${p.providerName}`));
       c.onlyInTest.forEach((p) => L.push(`- ➕ 測試網多：${p.providerName}`));
+      L.push("");
+    }
+  }
+  const orderDiffs = (r.categories || []).filter((c) => c.orderDiffers && c.order);
+  if (orderDiffs.length) {
+    L.push("## 遊戲種類 Provider 順序不同（以主網為準）");
+    for (const c of orderDiffs) {
+      L.push(`### ${c.label}`);
+      c.order.moved.forEach((m) => L.push(`- ⇅ ${m.providerName}：主網第 ${m.mainPos} → 測試網第 ${m.testPos}`));
+      L.push(`- 主網順序：${c.order.mainSeq.map((n, i) => `${i + 1}.${n}`).join(" › ")}`);
+      L.push(`- 測試網順序：${c.order.testSeq.map((n, i) => `${i + 1}.${n}`).join(" › ")}`);
       L.push("");
     }
   }

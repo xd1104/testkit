@@ -48,6 +48,7 @@ node server.js
 拿測試網跟主網比對，以下全一致才 PASS：
 - **總 Provider 清單**（誰有誰沒有）
 - **每個遊戲種類各差了哪些 Provider**（slot / lc / sport / arcade / fish / p2p…，排除 `home` 聚合類）。同一家 provider 兩站都有、但被歸到不同種類也會被抓出來。
+- **每個遊戲種類的 Provider 排序**（以主網為準，只比兩站都有的那幾家的相對順序）。報告會列出「主網順序 / 測試網順序」兩排，並標出測試網哪幾家位置變了（例如 `SA GAMING 主#2→測#3`）。
 - **每個共同 Provider 底下的 game 清單**（誰有誰沒有，用 `gameCode`）
 
 > **Provider 身分用「正規化後的名稱」跨站配對，不用 `lobbyKey`。** 原因：同一家 provider 的 `lobbyKey` 在不同站不一定相同（例如 PRAGMATIC），有些同一家還會用不同名稱（例如 MICRO GAMING / MG Plus）。正規化＝小寫＋只留英數（`Micro Gaming`／`MICRO GAMING`／`MicroGaming` 自動視為同一家），真正不同名的同一家再靠 `lib/providers.js` 的別名表對應。同一家的多個 lobby（slot 一個、live casino 一個…）會合併成一筆、遊戲清單取聯集。
