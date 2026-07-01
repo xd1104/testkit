@@ -46,9 +46,11 @@ node server.js
 ### 1. Provider & Game 數量比對（`count-compare`）
 
 拿測試網跟主網比對，以下全一致才 PASS：
-- **總 Provider 清單**（誰有誰沒有，用 `lobbyKey`）
+- **總 Provider 清單**（誰有誰沒有）
 - **每個遊戲種類各差了哪些 Provider**（slot / lc / sport / arcade / fish / p2p…，排除 `home` 聚合類）。同一家 provider 兩站都有、但被歸到不同種類也會被抓出來。
 - **每個共同 Provider 底下的 game 清單**（誰有誰沒有，用 `gameCode`）
+
+> **Provider 身分用「正規化後的名稱」跨站配對，不用 `lobbyKey`。** 原因：同一家 provider 的 `lobbyKey` 在不同站不一定相同（例如 PRAGMATIC），有些同一家還會用不同名稱（例如 MICRO GAMING / MG Plus）。正規化＝小寫＋只留英數（`Micro Gaming`／`MICRO GAMING`／`MicroGaming` 自動視為同一家），真正不同名的同一家再靠 `lib/providers.js` 的別名表對應。同一家的多個 lobby（slot 一個、live casino 一個…）會合併成一筆、遊戲清單取聯集。
 
 ### 2. Provider & Game Icon 比對（`icon-compare`）
 
@@ -66,8 +68,8 @@ node server.js
 ### 比對型測試的資料來源（純打 API、不經過 AI、零成本）：
 
 1. 從前台 Next.js `_app` chunk 抓 `HOST_URL` → 得出 `wallet.<domain>`
-2. `wallet.<domain>/func/cms/getCmsPageInfo?page=home.game` → Provider 清單（用 `lobbyKey` 去重，**不可用 seq**）
-3. `wallet.<domain>/func/comm/getCmsSetting?key=<lobbyKey>` → 該 lobby 的 game 清單
+2. `wallet.<domain>/func/cms/getCmsPageInfo?page=home.game` → Provider 清單（**不可用 seq**；抓下來後用正規化名稱當身分、合併同一家的多個 lobby）
+3. `wallet.<domain>/func/comm/getCmsSetting?key=<lobbyKey>` → 該 lobby 的 game 清單（一家有多個 lobby 就逐一抓再取聯集）
 
 **重要：只比對「啟用」的遊戲。** API 回傳的 `menuList[]` 每款遊戲有 `status` 欄位：
 正數（10）= 上架、玩家看得到；負數（-10、-5）= 下架/隱藏、網頁不顯示。
@@ -138,6 +140,7 @@ testkit/
 ├── render.yaml                # Render 部署設定
 ├── lib/
 │   ├── fetcher.js             # 抓資料：探測 wallet host、抓 provider、抓 lobby 的 game
+│   ├── providers.js           # provider 名稱正規化 + 別名表（跨站配對身分）
 │   └── collect.js             # 共用：一次收集兩站的 provider + game 資料
 ├── tests/                     # 測試項目（deterministic，純程式）
 │   ├── index.js               # 測試項目註冊表

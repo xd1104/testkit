@@ -153,8 +153,8 @@ function renderReport(r) {
   let diffs = "";
   if (r.providerDiff && (r.providerDiff.onlyInMain.length || r.providerDiff.onlyInTest.length)) {
     const rows = [
-      ...r.providerDiff.onlyInMain.map((p) => `<div class="row"><span class="tag miss">測試網缺</span>${esc(p.providerName)} <span style="color:var(--muted)">(${esc(p.lobbyKey)})</span></div>`),
-      ...r.providerDiff.onlyInTest.map((p) => `<div class="row"><span class="tag extra">測試網多</span>${esc(p.providerName)} <span style="color:var(--muted)">(${esc(p.lobbyKey)})</span></div>`),
+      ...r.providerDiff.onlyInMain.map((p) => `<div class="row"><span class="tag miss">測試網缺</span>${esc(p.providerName)}</div>`),
+      ...r.providerDiff.onlyInTest.map((p) => `<div class="row"><span class="tag extra">測試網多</span>${esc(p.providerName)}</div>`),
     ].join("");
     diffs += `<div class="diff"><h4>Provider 差異（全站）</h4>${rows}</div>`;
   }
@@ -174,7 +174,7 @@ function renderReport(r) {
   }
   if ((r.providerIconDiffs || []).length) {
     const rows = r.providerIconDiffs.map((p) =>
-      `<div class="row"><span class="tag icon">icon 不同</span>${esc(p.providerName)} <span style="color:var(--muted)">(${esc(p.lobbyKey)})</span>
+      `<div class="row"><span class="tag icon">icon 不同</span>${esc(p.providerName)}
         <div class="iconpath">主：${esc(p.mainIcon)}<br>測：${esc(p.testIcon)}</div></div>`
     ).join("");
     diffs += `<div class="diff"><h4>Provider icon 差異</h4>${rows}</div>`;
@@ -245,8 +245,8 @@ function buildMarkdown(r) {
   const pd = r.providerDiff || { onlyInMain: [], onlyInTest: [] };
   if (pd.onlyInMain.length || pd.onlyInTest.length) {
     L.push("## Provider 差異");
-    pd.onlyInMain.forEach((p) => L.push(`- ❌ 測試網缺：${p.providerName} (${p.lobbyKey})`));
-    pd.onlyInTest.forEach((p) => L.push(`- ➕ 測試網多：${p.providerName} (${p.lobbyKey})`));
+    pd.onlyInMain.forEach((p) => L.push(`- ❌ 測試網缺：${p.providerName}`));
+    pd.onlyInTest.forEach((p) => L.push(`- ➕ 測試網多：${p.providerName}`));
     L.push("");
   }
   const catDiffs = (r.categories || []).filter((c) => c.onlyInMain.length || c.onlyInTest.length);
@@ -254,15 +254,15 @@ function buildMarkdown(r) {
     L.push("## 遊戲種類 Provider 差異");
     for (const c of catDiffs) {
       L.push(`### ${c.label} — 主網 ${c.mainCount} / 測試網 ${c.testCount}`);
-      c.onlyInMain.forEach((p) => L.push(`- ❌ 測試網缺：${p.providerName} (${p.lobbyKey})`));
-      c.onlyInTest.forEach((p) => L.push(`- ➕ 測試網多：${p.providerName} (${p.lobbyKey})`));
+      c.onlyInMain.forEach((p) => L.push(`- ❌ 測試網缺：${p.providerName}`));
+      c.onlyInTest.forEach((p) => L.push(`- ➕ 測試網多：${p.providerName}`));
       L.push("");
     }
   }
   if ((r.providerIconDiffs || []).length) {
     L.push("## Provider icon 差異");
     r.providerIconDiffs.forEach((p) => {
-      L.push(`- ⚠️ ${p.providerName} (${p.lobbyKey})`);
+      L.push(`- ⚠️ ${p.providerName}`);
       L.push(`  - 主：${p.mainIcon}`);
       L.push(`  - 測：${p.testIcon}`);
     });
@@ -271,7 +271,7 @@ function buildMarkdown(r) {
   if ((r.lobbyDiffs || []).length) {
     L.push("## Game 差異");
     for (const d of r.lobbyDiffs) {
-      L.push(`### ${d.providerName} （${d.lobbyKey}） — 主網 ${d.mainCount} / 測試網 ${d.testCount}`);
+      L.push(`### ${d.providerName} — 主網 ${d.mainCount} / 測試網 ${d.testCount}`);
       d.missing.forEach((g) => L.push(`- ❌ 缺：${g.gameName} (${g.gameCode})`));
       d.extra.forEach((g) => L.push(`- ➕ 多：${g.gameName} (${g.gameCode})`));
       (d.iconChanged || []).forEach((g) => {

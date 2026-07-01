@@ -1,6 +1,7 @@
 // 測試項目：Provider & Game Icon 比對
-// 只比「兩站都有」的 Provider / Game 的 icon（比路徑/檔名，忽略網域），icon 全一致才 PASS
+// 只比「兩站都有」的 Provider / Game 的 icon（比路徑/檔名，忽略網域與副檔名），icon 全一致才 PASS
 // 建議先跑「Provider & Game 數量比對」確認數量對了，再跑這個比 icon
+// Provider 身分用 canonical 名稱（見 lib/providers.js）跨站配對，不用 lobbyKey。
 const { collectSites, inputs } = require("../lib/collect");
 
 const id = "icon-compare";
@@ -8,7 +9,7 @@ const name = "Provider & Game Icon 比對";
 const description =
   "比對兩站都有的 Provider / 遊戲的 icon（只比路徑，忽略網域與副檔名）。icon 全一致才 PASS。建議先過數量比對再跑這個。需填主網 + 測試網兩個網址。";
 
-// 比 icon 時忽略副檔名（.png / .webp 等只是格式不同，圖視為相同）
+// 比 icon 時忽略副檔名（.png / .webp 等只是格式不同、圖視為相同）
 const stripExt = (s) => String(s || "").replace(/\.[a-z0-9]+$/i, "");
 const sameIcon = (a, b) => stripExt(a) === stripExt(b);
 
@@ -30,22 +31,22 @@ async function run(params, onProgress) {
   const data = await collectSites(params, onProgress);
   report.walletHosts = { main: data.mainHost, test: data.testHost };
 
-  // Provider icon 比對（只比兩站都有的）
+  // Provider icon 比對（只比兩站都有的，用 canonical 名稱配對）
   for (const p of data.mainProvs) {
-    const t = data.testKeys.get(p.lobbyKey);
+    const t = data.testByCanon.get(p.canon);
     if (t && !sameIcon(p.icon, t.icon)) {
       report.providerIconDiffs.push({
-        lobbyKey: p.lobbyKey,
         providerName: p.providerName,
+        canon: p.canon,
         mainIcon: p.icon,
         testIcon: t.icon,
       });
     }
   }
 
-  // Game icon 比對（每個共同 lobby，比兩邊都有的 gameCode 的 icon）
+  // Game icon 比對（每個共同 provider，比兩邊都有的 gameCode 的 icon）
   for (const p of data.common) {
-    const { main: mg, test: tg } = data.games[p.lobbyKey];
+    const { main: mg, test: tg } = data.games[p.canon];
     const testMap = new Map(tg.map((g) => [g.gameCode, g]));
     const iconChanged = mg
       .filter((g) => testMap.has(g.gameCode) && !sameIcon(g.icon, testMap.get(g.gameCode).icon))
@@ -57,8 +58,8 @@ async function run(params, onProgress) {
       }));
     if (iconChanged.length) {
       report.lobbyDiffs.push({
-        lobbyKey: p.lobbyKey,
         providerName: p.providerName,
+        canon: p.canon,
         mainCount: mg.length,
         testCount: tg.length,
         missing: [],
