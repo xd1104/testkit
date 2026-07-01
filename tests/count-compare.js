@@ -75,13 +75,8 @@ async function run(params, onProgress) {
     let order = null;
     if (orderDiffers) {
       categoriesWithOrderDiff++;
-      const testPos = new Map(testSeq.map((c, i) => [c, i]));
-      const moved = [];
-      mainSeq.forEach((c, i) => {
-        const j = testPos.get(c);
-        if (j !== i) moved.push({ providerName: nameOf(c), mainPos: i + 1, testPos: j + 1 });
-      });
-      order = { mainSeq: mainSeq.map(nameOf), testSeq: testSeq.map(nameOf), moved };
+      // 只需要「順序不對 + 主網正確順序」；不列測試網哪裡不同
+      order = { mainSeq: mainSeq.map(nameOf) };
     }
 
     report.categories.push({
