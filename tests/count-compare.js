@@ -66,18 +66,20 @@ async function run(params, onProgress) {
     const testCatCanon = new Set(testIn.map((p) => p.canon));
     const onlyInMain = mainIn.filter((p) => !testCatCanon.has(p.canon)).map(provInfo);
     const onlyInTest = testIn.filter((p) => !mainCatCanon.has(p.canon)).map(provInfo);
-    if (onlyInMain.length || onlyInTest.length) categoriesWithDiff++;
+    const hasCountDiff = onlyInMain.length > 0 || onlyInTest.length > 0;
+    if (hasCountDiff) categoriesWithDiff++;
 
-    // 排序比對（以主網為準）：只比兩站都有的 provider 的相對順序
-    const mainSeq = (data.mainOrder[cat] || []).filter((c) => testCatCanon.has(c));
-    const testSeq = (data.testOrder[cat] || []).filter((c) => mainCatCanon.has(c));
-    const orderDiffers = mainSeq.join("|") !== testSeq.join("|");
-    let order = null;
-    if (orderDiffers) {
-      categoriesWithOrderDiff++;
-      // 只需要「順序不對 + 主網正確順序」；不列測試網哪裡不同
-      order = { mainSeq: mainSeq.map(nameOf) };
-    }
+    // 排序比對（以主網為準）：相對順序只看兩站都有的 provider
+    const mainCommon = (data.mainOrder[cat] || []).filter((c) => testCatCanon.has(c));
+    const testCommon = (data.testOrder[cat] || []).filter((c) => mainCatCanon.has(c));
+    const orderDiffers = mainCommon.join("|") !== testCommon.join("|");
+    if (orderDiffers) categoriesWithOrderDiff++;
+
+    // 只要「數量不同」或「順序不同」，就列出【主網完整順序】供對照（該種類全部 provider，含測試網缺的）；
+    // 數量與順序都對才不列。
+    const order = (hasCountDiff || orderDiffers)
+      ? { mainSeq: (data.mainOrder[cat] || []).map(nameOf) }
+      : null;
 
     report.categories.push({
       category: cat,

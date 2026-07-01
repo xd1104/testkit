@@ -167,15 +167,18 @@ function renderReport(r) {
       const hasCountDiff = c.onlyInMain.length || c.onlyInTest.length;
       let detail = items.length
         ? items.map((x) => `<div style="margin:2px 0 2px 4px">${x}</div>`).join("")
-        : (c.orderDiffers ? "" : `<span class="tag ok">一致</span>`);
-      // 排序不對：只說「順序不對」＋列出主網正確順序，不列測試網哪裡不同
-      if (c.orderDiffers && c.order) {
+        : (c.order ? "" : `<span class="tag ok">一致</span>`);
+      // 只要數量或順序有差就列出主網完整順序供對照；標籤區分「順序不對」與「順序正確（僅數量不同）」
+      if (c.order) {
         const seq = c.order.mainSeq.map((n, i) =>
           `<span style="color:var(--muted)">${i + 1}.${esc(n)}</span>`
         ).join(' <span style="color:var(--line)">›</span> ');
+        const tag = c.orderDiffers
+          ? '<span class="tag icon">順序不對</span>'
+          : '<span class="tag ok">順序正確</span>';
         detail += `<div style="margin:6px 0 2px 4px;padding-top:6px;border-top:1px dashed var(--line)">
-          <span class="tag icon">順序不對</span>
-          <div style="margin:6px 0 0;font-size:12px;line-height:1.9"><span style="color:var(--muted)">主網正確順序：</span>${seq}</div>
+          ${tag}
+          <div style="margin:6px 0 0;font-size:12px;line-height:1.9"><span style="color:var(--muted)">主網完整順序：</span>${seq}</div>
         </div>`;
       }
       const mark = hasCountDiff ? ' <span style="color:var(--fail)">✗ 數量</span>'
@@ -273,12 +276,12 @@ function buildMarkdown(r) {
       L.push("");
     }
   }
-  const orderDiffs = (r.categories || []).filter((c) => c.orderDiffers && c.order);
-  if (orderDiffs.length) {
-    L.push("## 遊戲種類 Provider 順序不對（以主網為準）");
-    for (const c of orderDiffs) {
-      L.push(`### ${c.label}｜順序不對`);
-      L.push(`- 主網正確順序：${c.order.mainSeq.map((n, i) => `${i + 1}.${n}`).join(" › ")}`);
+  const orderCats = (r.categories || []).filter((c) => c.order);
+  if (orderCats.length) {
+    L.push("## 遊戲種類 Provider 順序（以主網為準）");
+    for (const c of orderCats) {
+      L.push(`### ${c.label}｜${c.orderDiffers ? "順序不對" : "順序正確（僅數量不同）"}`);
+      L.push(`- 主網完整順序：${c.order.mainSeq.map((n, i) => `${i + 1}.${n}`).join(" › ")}`);
       L.push("");
     }
   }
