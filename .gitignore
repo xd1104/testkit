@@ -1,4 +1,3 @@
 node_modules/
 runs/
 *.log
-.claude-token

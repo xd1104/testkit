@@ -1,8 +1,8 @@
 # 自動化測試工具 (testkit)
 
-一個本機 / 線上都能跑的自動化測試工具。輸入網址、按按鈕，跑完在網頁顯示測試報告，並可下載報告交給工程師。
+一個本機 / 線上都能跑的自動化測試工具。輸入網址、按按鈕，跑完在網頁顯示測試報告，並可下載報告交給工程師。純 API、確定性比對，零外部依賴。
 
-目前內建測試項目：**Game 完整度**（主網 vs 測試網 比對）。
+目前內建測試項目：**Provider & Game 數量比對**、**Provider & Game Icon 比對**（皆為主網 vs 測試網比對）。
 
 ---
 
@@ -33,42 +33,22 @@ node server.js
 
 > 免費方案特性：閒置約 15 分鐘會休眠（下次喚醒等 ~30-60 秒）；硬碟是暫時的，歷史紀錄重啟後會清空（報告當下可下載，不受影響）。
 
-### 本機 runner（AI 驅動，跑在你電腦上）
-
-有些測試（例如註冊：欄位規則每站不同）需要「臨機應變」，這種交給 **Claude Code 主導執行**——它自己摸清楚該站規則、執行、判斷、回報。本機 runner 走你的 **Claude Code 訂閱、不需 API key、不額外花錢**。
-
-啟動（要在**已登入 Claude Code 的終端機**執行）：
-
-```powershell
-npm run local      # 或 node local.js
-```
-
-開 http://localhost:4600，用法跟主工具一樣（同一個網頁 UI）。本機測試有兩種：
-
-- **Claude 主導型**（`local-tests/*.js` 有 `buildPrompt`）：headless `claude -p` 放行 `Bash` 自己摸規則、執行、回 JSON。例：`register.js`（註冊/登入/登出，跨站自適應）。
-- **程式驅動型**（`local-tests/*.js` 有 `run()`）：用 Playwright 等實際操作，結構檢查寫死、模糊判斷再呼叫 `lib/ai.js` 給 Claude 判。例：`form-validation.js`（註冊表單驗證）。
-
-兩種都只能在本機跑（線上 Render 沒有登入你的 Claude Code）。執行邏輯在 `local.js` + `lib/ai.js`。
-
-`form-validation.js` 涵蓋 6 項：①號碼欄位擋非數字 ②逐欄位必填 ③電話長度邊界值(8/9/10/11) ④密碼規則 ⑤錯誤提示正確性 ⑥重複手機號。結果除 PASS/FAIL 外有 **WARN**（無法確認，例如該站註冊為多步驟導致重複號測不準）；WARN 不算失敗。錯誤提示可能是 toast 或欄位旁紅字，用「填錯→送出→抓新出現文字」捕捉，故每個情境會重載頁面避免上一輪 toast 殘留。
-
-> 線上版 vs 本機 runner：**能寫死的、要常跑的、要線上的 → 線上版（免費、deterministic）**；**要臨機應變的、跨站適應的、要瀏覽器的 → 本機 runner（走訂閱）**。
+> 需要「臨機應變、跨站適應」的瀏覽器功能測試（註冊表單驗證、登入/登出 E2E、XSS/SQLi 等）不在 testkit 範圍內，改用 **web-tester Skill**（`/網站測試`）。testkit 專注於確定性、可重現、可排程的純 API 比對。
 
 ---
 
 ## 測試項目
 
-每個測試項目在網頁上選取後，下方會顯示一段說明（`description`）讓使用者知道它在測什麼。目前有三個：
-
-### 比對型（主網 vs 測試網，讀資料比對，免費、可線上）
+每個測試項目在網頁上選取後，下方會顯示一段說明（`description`）讓使用者知道它在測什麼。目前有兩個（皆為比對型：主網 vs 測試網，讀資料比對，免費、可線上）。
 
 **建議先比數量、數量對了再比 icon**（數量都不對的話比 icon 沒意義）：
 
 ### 1. Provider & Game 數量比對（`count-compare`）
 
 拿測試網跟主網比對，以下全一致才 PASS：
-- Provider 清單（誰有誰沒有，用 `lobbyKey`）
-- 每個 Provider 底下的 game 清單（誰有誰沒有，用 `gameCode`）
+- **總 Provider 清單**（誰有誰沒有，用 `lobbyKey`）
+- **每個遊戲種類各差了哪些 Provider**（slot / lc / sport / arcade / fish / p2p…，排除 `home` 聚合類）。同一家 provider 兩站都有、但被歸到不同種類也會被抓出來。
+- **每個共同 Provider 底下的 game 清單**（誰有誰沒有，用 `gameCode`）
 
 ### 2. Provider & Game Icon 比對（`icon-compare`）
 
@@ -83,21 +63,7 @@ npm run local      # 或 node local.js
 
 兩個項目共用同一套抓資料邏輯（`lib/collect.js`），只是拿到資料後比的東西不同。
 
-### 流程型（單站功能測試，E2E）
-
-### 3. 註冊 / 登入 / 登出（`register-login-logout`）
-
-對**單一個站**實際跑一次完整流程，三步都成功才 PASS（會在目標站建立一個 qa 開頭的測試帳號）：
-
-1. **註冊**：`POST <wallet>/func/player/register`（form），欄位 `username, password, confirm_password, reg_type=10, countryCode=+880, type=30, device_id(UUID), mobile_no(10碼)` → 回 `code:0` + loginToken
-2. **登入**：`POST <wallet>/j_spring_security_check`（`j_username` / `j_password`）→ 回 `code:0 login success` + JSESSIONID cookie
-3. **登出**：`GET <wallet>/func/j_spring_security_logout`（帶 cookie）→ 回 `code:0 logout success`
-
-帳號命名：`qa` + 日期(YYMMDD) + 4 碼隨機（例 `qa260616a3f9`）。`eventData` 那包追蹤資料後端不需要，不送。系統參數 `reg_type/countryCode/type` 是這套品牌（孟加拉）的固定值，換品牌可能要調。
-
-> 此項仍是純 API（輕量、可線上）。前端表單驗證測試（擋字、錯誤提示）需要瀏覽器，已做在本機 runner 的 `form-validation.js`。
-
-資料來源（純打 API、不經過 AI、零成本）：
+### 比對型測試的資料來源（純打 API、不經過 AI、零成本）：
 
 1. 從前台 Next.js `_app` chunk 抓 `HOST_URL` → 得出 `wallet.<domain>`
 2. `wallet.<domain>/func/cms/getCmsPageInfo?page=home.game` → Provider 清單（用 `lobbyKey` 去重，**不可用 seq**）
@@ -148,7 +114,7 @@ module.exports = {
 
 ```js
 const myTest = require("./my-test");
-const tests = [gameCompleteness, myTest];   // 加進陣列
+const tests = [countCompare, iconCompare, myTest];   // 加進陣列
 ```
 
 ### 3. 推上去
@@ -167,27 +133,19 @@ Render 自動重新部署，網頁下拉選單就會自動多出新項目。
 
 ```
 testkit/
-├── server.js                  # 線上版 server：前端 + 觸發測試(SSE) + 歷史 + 密碼
-├── local.js                   # 本機 runner：測試交給 Claude Code(headless) 執行
-├── package.json               # 啟動設定 (npm start / npm run local)
+├── server.js                  # server：前端 + 觸發測試(SSE) + 歷史 + 密碼
+├── package.json               # 啟動設定 (npm start)
 ├── render.yaml                # Render 部署設定
 ├── lib/
 │   ├── fetcher.js             # 抓資料：探測 wallet host、抓 provider、抓 lobby 的 game
-│   ├── collect.js             # 共用：一次收集兩站的 provider + game 資料
-│   ├── http.js                # 通用 HTTPS 請求（POST/cookie），給流程型測試用
-│   └── ai.js                  # 透過 headless Claude Code 執行任務（走訂閱）
-├── tests/                     # 線上版測試（deterministic，純程式）
+│   └── collect.js             # 共用：一次收集兩站的 provider + game 資料
+├── tests/                     # 測試項目（deterministic，純程式）
 │   ├── index.js               # 測試項目註冊表
 │   ├── count-compare.js       # 「Provider & Game 數量比對」
-│   ├── icon-compare.js        # 「Provider & Game Icon 比對」
-│   └── register-login-logout.js # 「註冊 / 登入 / 登出」E2E（寫死欄位，限對應國家的站）
-├── local-tests/               # 本機 runner 測試（Claude 主導 prompt 或 Playwright 程式驅動）
-│   ├── form-validation.js     # 「註冊表單驗證」6 項（Playwright + Claude 判斷）
-│   ├── index.js
-│   └── register.js            # 「註冊 / 登入 / 登出（AI）」跨站適應
+│   └── icon-compare.js        # 「Provider & Game Icon 比對」
 ├── public/
-│   └── index.html             # 前端網頁（單檔，線上版與本機 runner 共用）
+│   └── index.html             # 前端網頁（單檔）
 └── runs/                      # 每次測試報告的 JSON（已被 .gitignore 排除）
 ```
 
-零外部依賴，純 Node（需 Node 18 以上）。本機 runner 另需安裝並登入 Claude Code。
+零外部依賴，純 Node（需 Node 18 以上）。

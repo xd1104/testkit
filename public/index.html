@@ -27,9 +27,6 @@
   .progress { display: none; }
   .bar { height: 8px; background: #0f1115; border-radius: 6px; overflow: hidden; margin: 10px 0; }
   .bar > i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .2s; }
-  .bar > i.indet { background: linear-gradient(90deg, transparent, var(--accent), transparent);
-    background-size: 40% 100%; background-repeat: no-repeat; animation: indet 1.2s infinite linear; }
-  @keyframes indet { 0% { background-position: -40% 0; } 100% { background-position: 140% 0; } }
   .pmsg { font-size: 13px; color: var(--muted); }
   .verdict { font-size: 26px; font-weight: 800; }
   .verdict.PASS { color: var(--ok); } .verdict.FAIL { color: var(--fail); }
@@ -130,8 +127,7 @@ function renderInputs() {
   $("#inputs").innerHTML = t.inputs.map((i) =>
     `<label>${i.label}</label><input id="in_${i.key}" placeholder="${i.placeholder || ""}" />`
   ).join("");
-  // B 類顯示「產生指令」，A 類顯示「開始測試」
-  $("#go").textContent = t.mode === "prompt" ? "產生指令" : "開始測試";
+  $("#go").textContent = "開始測試";
 }
 
 function esc(s) { return String(s == null ? "" : s).replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c])); }
@@ -160,7 +156,21 @@ function renderReport(r) {
       ...r.providerDiff.onlyInMain.map((p) => `<div class="row"><span class="tag miss">測試網缺</span>${esc(p.providerName)} <span style="color:var(--muted)">(${esc(p.lobbyKey)})</span></div>`),
       ...r.providerDiff.onlyInTest.map((p) => `<div class="row"><span class="tag extra">測試網多</span>${esc(p.providerName)} <span style="color:var(--muted)">(${esc(p.lobbyKey)})</span></div>`),
     ].join("");
-    diffs += `<div class="diff"><h4>Provider 差異</h4>${rows}</div>`;
+    diffs += `<div class="diff"><h4>Provider 差異（全站）</h4>${rows}</div>`;
+  }
+  if ((r.categories || []).length) {
+    const rows = r.categories.map((c) => {
+      const items = [
+        ...c.onlyInMain.map((p) => `<span class="tag miss">測缺</span>${esc(p.providerName)}`),
+        ...c.onlyInTest.map((p) => `<span class="tag extra">測多</span>${esc(p.providerName)}`),
+      ];
+      const detail = items.length
+        ? items.map((x) => `<div style="margin:2px 0 2px 4px">${x}</div>`).join("")
+        : `<span class="tag ok">一致</span>`;
+      const mark = (c.onlyInMain.length || c.onlyInTest.length) ? ' <span style="color:var(--fail)">✗</span>' : "";
+      return `<div class="row"><b>${esc(c.label)}</b> <span style="color:var(--muted)">主 ${c.mainCount} / 測 ${c.testCount}</span>${mark}<div style="margin-top:2px">${detail}</div></div>`;
+    }).join("");
+    diffs += `<div class="diff"><h4>遊戲種類 Provider 差異</h4>${rows}</div>`;
   }
   if ((r.providerIconDiffs || []).length) {
     const rows = r.providerIconDiffs.map((p) =>
@@ -176,36 +186,23 @@ function renderReport(r) {
       ...(d.iconChanged || []).map((g) => `<div class="row"><span class="tag icon">icon 不同</span>${esc(g.gameName)} <span style="color:var(--muted)">(${esc(g.gameCode)})</span>
         <div class="iconpath">主：${esc(g.mainIcon)}<br>測：${esc(g.testIcon)}</div></div>`),
     ].join("");
-    diffs += `<div class="diff"><h4>${esc(d.providerName)} — 主網 ${d.mainCount} / 測試網 ${d.testCount}</h4>${rows}</div>`;
+    diffs += `<div class="diff"><h4>${esc(d.providerName)} 遊戲差異 — 主網 ${d.mainCount} / 測試網 ${d.testCount}</h4>${rows}</div>`;
   }
-  // 流程型測試（註冊/登入/登出）：顯示每一步
-  if (r.steps && r.steps.length) {
-    const tagClass = (s) => (s === "PASS" ? "ok" : s === "WARN" ? "icon" : "miss");
-    const rows = r.steps.map((st) =>
-      `<div class="row"><span class="tag ${tagClass(st.status)}">${st.status}</span>${esc(st.name)} <span style="color:var(--muted)">— ${esc(st.detail)}</span></div>`
-    ).join("");
-    diffs = `<div class="diff"><h4>測試步驟</h4>${rows}</div>` + diffs;
-  } else if (r.result === "PASS") {
-    diffs = '<div style="color:var(--ok);font-size:14px;margin-top:12px">✓ 測試網與主網完全一致</div>';
+  if (r.result === "PASS") {
+    diffs = '<div style="color:var(--ok);font-size:14px;margin:12px 0">✓ 測試網與主網完全一致</div>' + diffs;
   }
 
   // 依報告實際有的欄位決定要顯示哪些統計（兩種測試欄位不同）
   const stats = [];
   if (s.mainProviders != null) stats.push(`Provider 主網 ${s.mainProviders} / 測試網 ${s.testProviders}`);
   if (s.providerMissing != null || s.providerExtra != null) stats.push(`Provider 差異 ${(s.providerMissing||0)+(s.providerExtra||0)}`);
+  if (s.categoriesWithDiff != null) stats.push(`種類有差異 ${s.categoriesWithDiff}`);
   if (s.lobbiesWithGameDiff != null) stats.push(`Game 有差異的 Provider ${s.lobbiesWithGameDiff}`);
   if (s.providerIconDiff != null) stats.push(`Provider icon 差異 ${s.providerIconDiff}`);
   if (s.gameIconDiff != null) stats.push(`Game icon 差異 ${s.gameIconDiff}`);
   const statsHtml = stats.map((t) => `<span class="stat">${t}</span>`).join("");
 
-  // meta 區依測試型態調整：比對型顯示主/測網；流程型顯示目標站 + 建立的帳號
-  let metaHtml;
-  if (r.steps) {
-    metaHtml = `目標站 ${esc(r.siteUrl)} → ${esc(r.walletHost)}`;
-    if (r.account) metaHtml += `<br>建立帳號 ${esc(r.account.username)} / ${esc(r.account.password)}`;
-  } else {
-    metaHtml = `主網 ${esc(r.mainUrl)} → ${esc(r.walletHosts && r.walletHosts.main)}<br>測試網 ${esc(r.testUrl)} → ${esc(r.walletHosts && r.walletHosts.test)}`;
-  }
+  const metaHtml = `主網 ${esc(r.mainUrl)} → ${esc(r.walletHosts && r.walletHosts.main)}<br>測試網 ${esc(r.testUrl)} → ${esc(r.walletHosts && r.walletHosts.test)}`;
 
   window.__report = r;
   $("#reportBox").innerHTML = `<div class="card">
@@ -229,22 +226,14 @@ function buildMarkdown(r) {
   L.push(`# ${r.name} 報告 — ${r.result}`);
   L.push("");
   L.push(`- 測試項目：${r.name}`);
-  if (r.steps) {
-    L.push(`- 目標站：${r.siteUrl}  →  ${r.walletHost}`);
-    if (r.account) L.push(`- 建立帳號：${r.account.username} / ${r.account.password}`);
-  } else {
-    L.push(`- 主網：${r.mainUrl}  →  ${r.walletHosts && r.walletHosts.main}`);
-    L.push(`- 測試網：${r.testUrl}  →  ${r.walletHosts && r.walletHosts.test}`);
-  }
+  L.push(`- 主網：${r.mainUrl}  →  ${r.walletHosts && r.walletHosts.main}`);
+  L.push(`- 測試網：${r.testUrl}  →  ${r.walletHosts && r.walletHosts.test}`);
   L.push(`- 時間：${new Date(r.finishedAt).toLocaleString()}（耗時 ${(r.durationMs/1000).toFixed(1)}s）`);
   L.push("");
   L.push(`## 結果：${r.result}`);
-  if (r.steps) {
-    r.steps.forEach((st) => L.push(`- ${st.status === "PASS" ? "✅" : st.status === "WARN" ? "⚠️" : "❌"} ${st.name}：${st.detail}`));
-    return L.join("\n");
-  }
   if (s.mainProviders != null) L.push(`- Provider 數量：主網 ${s.mainProviders} / 測試網 ${s.testProviders}`);
   if (s.providerMissing != null || s.providerExtra != null) L.push(`- Provider 差異：${(s.providerMissing||0)+(s.providerExtra||0)}`);
+  if (s.categoriesWithDiff != null) L.push(`- 種類有差異：${s.categoriesWithDiff}`);
   if (s.lobbiesWithGameDiff != null) L.push(`- Game 有差異的 Provider：${s.lobbiesWithGameDiff}`);
   if (s.providerIconDiff != null) L.push(`- Provider icon 差異：${s.providerIconDiff}`);
   if (s.gameIconDiff != null) L.push(`- Game icon 差異：${s.gameIconDiff}`);
@@ -259,6 +248,16 @@ function buildMarkdown(r) {
     pd.onlyInMain.forEach((p) => L.push(`- ❌ 測試網缺：${p.providerName} (${p.lobbyKey})`));
     pd.onlyInTest.forEach((p) => L.push(`- ➕ 測試網多：${p.providerName} (${p.lobbyKey})`));
     L.push("");
+  }
+  const catDiffs = (r.categories || []).filter((c) => c.onlyInMain.length || c.onlyInTest.length);
+  if (catDiffs.length) {
+    L.push("## 遊戲種類 Provider 差異");
+    for (const c of catDiffs) {
+      L.push(`### ${c.label} — 主網 ${c.mainCount} / 測試網 ${c.testCount}`);
+      c.onlyInMain.forEach((p) => L.push(`- ❌ 測試網缺：${p.providerName} (${p.lobbyKey})`));
+      c.onlyInTest.forEach((p) => L.push(`- ➕ 測試網多：${p.providerName} (${p.lobbyKey})`));
+      L.push("");
+    }
   }
   if ((r.providerIconDiffs || []).length) {
     L.push("## Provider icon 差異");
@@ -320,31 +319,6 @@ function copyReport() {
   );
 }
 
-async function generatePrompt(t, params) {
-  $("#go").disabled = true;
-  $("#reportBox").innerHTML = "";
-  try {
-    const r = await (await fetch("/api/prompt?" + params.toString())).json();
-    const text = r.prompt || "（產生失敗）";
-    window.__lastPrompt = text;
-    $("#reportBox").innerHTML = `<div class="card">
-      <div style="font-size:15px;font-weight:600;margin-bottom:6px">📋 複製這段指令，貼到你自己的 Claude 對話（要有 Claude in Chrome）</div>
-      <div class="meta">Claude 會開瀏覽器實際測這個站，報告會出現在那邊的對話裡。</div>
-      <div class="dlbar"><button class="dl" onclick="copyPrompt()">複製指令</button></div>
-      <textarea id="promptBox" readonly style="width:100%;height:320px;margin-top:8px;background:#0f1115;color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:12px;font-size:13px;line-height:1.5;box-sizing:border-box">${esc(text)}</textarea>
-    </div>`;
-  } catch (e) {
-    $("#reportBox").innerHTML = `<div class="card err">✗ 產生指令失敗：${esc(String(e.message || e))}</div>`;
-  }
-  $("#go").disabled = false;
-}
-function copyPrompt() {
-  navigator.clipboard.writeText(window.__lastPrompt || "").then(
-    () => alert("指令已複製，貼到你的 Claude 對話即可"),
-    () => { const b = $("#promptBox"); if (b) { b.select(); document.execCommand("copy"); alert("已複製"); } }
-  );
-}
-
 $("#go").onclick = () => {
   const t = curTest();
   const params = new URLSearchParams({ testId: t.id });
@@ -353,8 +327,6 @@ $("#go").onclick = () => {
     if (!v) { if (i.optional) continue; alert("請填寫 " + i.label); return; }
     params.set(i.key, v);
   }
-  // B 類：產生指令給使用者複製，不執行
-  if (t.mode === "prompt") { generatePrompt(t, params); return; }
   $("#go").disabled = true;
   $("#reportBox").innerHTML = "";
   $("#progress").style.display = "block";
@@ -367,13 +339,8 @@ $("#go").onclick = () => {
     const p = JSON.parse(e.data);
     $("#pmsg").textContent = p.message;
     if (p.phase === "games" && p.total) {
-      $("#barfill").classList.remove("indet");
       $("#barfill").style.width = Math.round((p.current / p.total) * 100) + "%";
       $("#psub").textContent = `${p.current} / ${p.total}`;
-    } else if (p.phase === "ai") {
-      // AI 執行時長度不定，用跑馬燈動畫表示「進行中」
-      $("#barfill").classList.add("indet");
-      $("#barfill").style.width = "100%";
     }
   });
   es.addEventListener("done", (e) => {
